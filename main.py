@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from bitmex.bitmex_websocket import BitMEXWebsocket
-from bitmex.bitmex_rest import bitmex
+from bitmex_websocket import BitMEXWebsocket
+from bitmex_rest import bitmex
 import logging
 import logging.handlers
 import time
@@ -12,7 +12,7 @@ import os
 
 class MyRobot:
     lever = 5
-    new_postion_thd = 350
+    new_position_thd = 350
     re_position_thd = 100
     price_table = {
         '8': [4, 10, 21, 43],
@@ -121,7 +121,7 @@ class MyRobot:
             times += 1
         return result
 
-    def candel_order(self, orderid):
+    def cancel_order(self, orderid):
         times = 0
         result = False
         while times < 500:
@@ -138,7 +138,7 @@ class MyRobot:
             times += 1
         return result
 
-    def ament_order(self, orderid, qty):
+    def amend_order(self, orderid, qty):
         times = 0
         while times < 500:
             self.logger.info('第%s次修改订单信息, orderID: %s' % (times + 1, orderid))
@@ -151,7 +151,7 @@ class MyRobot:
                 break
             times += 1
 
-    def close_postion(self, price, unit_amount):
+    def close_position(self, price, unit_amount):
         last_open_price = float(self.redis_cli.lindex('open_price_list', -1))
         if last_open_price < price:
             # XBTUSD市价平仓
@@ -184,7 +184,7 @@ class MyRobot:
                     for o in self.get_delegated_orders():
                         if o['price'] < last_open_price and o['price'] == 'Buy':
                             self.logger.info('cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
-                            self.candel_order(o['orderID'])
+                            self.cancel_order(o['orderID'])
                     break
                 times += 1
                 time.sleep(1)
@@ -200,7 +200,8 @@ class MyRobot:
             requests.get(url, params=params)
             self.last_sms_time = int(time.time())
 
-    def adjust_price(self, price):
+    @staticmethod
+    def adjust_price(price):
         import re
         match = re.match(r"(\d+)\.(\d{2})", '%.2f' % price)
         if match:
@@ -302,9 +303,9 @@ class MyRobot:
                             print(o)
                             if o['side'] == 'Sell' and avg_px < o['price'] < open_price:
                                 self.logger.info('cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
-                                self.candel_order(o['orderID'])
+                                self.cancel_order(o['orderID'])
                         # 平仓
-                        self.close_postion(avg_px, unit_amount)
+                        self.close_position(avg_px, unit_amount)
                         #
                         self.logger.info('rpop')
                         self.redis_cli.rpop('open_price_list')
@@ -315,7 +316,7 @@ class MyRobot:
                     elif cum_qty % 2 == 0:
                         if cum_qty % 16 == 0:
                             buy_price = avg_px - price_table[3]
-                            self.close_postion(avg_px, unit_amount)
+                            self.close_position(avg_px, unit_amount)
                         elif cum_qty % 8 == 0:
                             buy_price = avg_px - price_table[2]
                         elif cum_qty % 4 == 0:
@@ -340,7 +341,7 @@ class MyRobot:
                         # print(order_info)
                         if len(order_info[0]) > 0 and order_info[0][0]['ordStatus'] == 'Filled':
                             cum_qty = order_info[0][0]['cumQty']
-                            avg_px = self.adjust_price(order_info[0][0]['avgPx'])
+                            avg_px = MyRobot.adjust_price(order_info[0][0]['avgPx'])
                             self.logger.info('rpush')
                             self.redis_cli.rpush('open_price_list', avg_px)
                             if self.redis_cli.get('base_price') and self.redis_cli.get('unit_amount'):
@@ -355,7 +356,7 @@ class MyRobot:
                                 price = float(self.redis_cli.lindex('open_price_list', llen - 2))
                                 for o in self.get_delegated_orders():
                                     if o['orderQty'] % 32 == 0 and o['side'] == 'Sell' and o['price'] < price:
-                                        self.ament_order(o['orderID'], o['orderQty'] / 2)
+                                        self.amend_order(o['orderID'], o['orderQty'] / 2)
                             price_base = float(self.redis_cli.get('base_price'))
                             self.logger.info('cum_qty: %s, avg_px: %s' % (cum_qty, avg_px))
                             self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty, avg_px - price_base))
@@ -384,7 +385,7 @@ class MyRobot:
                                 if o['price'] < open_price and o['side'] == 'Buy':
                                     self.logger.info(
                                         'cancel order, orderID: %s, price: %s' % (o['orderID'], o['price']))
-                                    self.candel_order(o['orderID'])
+                                    self.cancel_order(o['orderID'])
                             break
                         times += 1
                         time.sleep(1)
@@ -396,7 +397,7 @@ class MyRobot:
                 bid_price = ticker['bidPrice']
                 last_open_price = float(self.redis_cli.lindex('open_price_list', -1))
 
-                if bid_price - last_open_price < -1 * self.new_postion_thd:
+                if bid_price - last_open_price < -1 * self.new_position_thd:
                     # self.logger.info('短信通知，开启新的仓位')
                     self.sms_notify(
                         '开启新的仓位 bid_price: %s, last_open_price: %s' % (

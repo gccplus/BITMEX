@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from bitmex.bitmex_websocket import BitMEXWebsocket
-from bitmex.bitmex_rest import bitmex
+from bitmex_websocket import BitMEXWebsocket
+from bitmex_rest import bitmex
 import logging
 import logging.handlers
 import time

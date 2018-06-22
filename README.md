@@ -1,5 +1,7 @@
 ### 运行环境
 python3
+### Redis
+程序使用redis保存配置参数
 ### 环境变量
 需要加入如下环境变量: BITMEX_API_KEY、BITMEX_API_SECRET
 ### 策略说明
