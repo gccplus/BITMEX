@@ -197,7 +197,7 @@ class MyRobot:
                 'phonenum': '18118999630',
                 'msg': msg
             }
-            requests.get(url, params=params)
+            # requests.get(url, params=params)
             self.last_sms_time = int(time.time())
 
     @staticmethod
@@ -217,23 +217,17 @@ class MyRobot:
         else:
             return price
 
+    """
+    2018/6/28
+    修改使支持len>3的情形
+    """
+
     def get_current_index(self, price):
-        if self.redis_cli.llen('open_price_list') == 0:
-            index = -1
-        elif self.redis_cli.llen('open_price_list') == 1:
-            index = 0
-        elif self.redis_cli.llen('open_price_list') == 2:
-            if price > float(self.redis_cli.lindex('open_price_list', 1)):
-                index = 0
-            else:
-                index = 1
-        else:
-            if price > float(self.redis_cli.lindex('open_price_list', 1)):
-                index = 0
-            elif price > float(self.redis_cli.lindex('open_price_list', 2)):
-                index = 1
-            else:
-                index = 2
+        key = 'open_price_list'
+        index = 0
+        for i in range(10):
+            if i < self.redis_cli.llen(key) and price < float(self.redis_cli.lindex(key, i)):
+                index = i
         return index
 
     def run(self):
@@ -251,7 +245,7 @@ class MyRobot:
                 index = self.get_current_index(avg_px)
                 price_base = 8
                 unit_amount = 0
-                if index >= 0:
+                if self.redis_cli.llen('open_price_list') > 0:
                     price_base = int(self.redis_cli.lindex('base_price_list', index))
                     unit_amount = int(self.redis_cli.lindex('unit_amount_list', index))
                     self.logger.info('index: %s, price_base: %s, unit_amount: %s' % (index, price_base, unit_amount))
@@ -428,3 +422,4 @@ def setup_logger():
 if __name__ == "__main__":
     robot = MyRobot()
     robot.run()
+    # robot.sms_notify('hello')
