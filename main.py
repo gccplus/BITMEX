@@ -53,7 +53,7 @@ class MyRobot:
     def get_filled_order(self):
         recent_order = None
         for order in self.ws.open_orders():
-            if order['ordStatus'] == 'Filled' and order['ordType'] == 'Limit' and (
+            if order['ordStatus'] == 'Filled' and (
                     not self.redis_cli.sismember('filled_order_set', order['orderID'])):
                 if not recent_order:
                     recent_order = order
@@ -86,7 +86,7 @@ class MyRobot:
         result = 0
         flag = False
         for o in self.get_delegated_orders():
-            print('side:%s, price:%s, orderid:%s' % (o['side'], o['price'], o['orderID']))
+            # print('side:%s, price:%s, orderid:%s' % (o['side'], o['price'], o['orderID']))
             if o['side'] == side and o['price'] == price:
                 flag = True
                 break
@@ -200,23 +200,6 @@ class MyRobot:
             # requests.get(url, params=params)
             self.last_sms_time = int(time.time())
 
-    @staticmethod
-    def adjust_price(price):
-        import re
-        match = re.match(r"(\d+)\.(\d{2})", '%.2f' % price)
-        if match:
-            integer = int(match.group(1))
-            decimal = int(match.group(2))
-            if decimal < 25:
-                decimal = 0
-            elif decimal < 75:
-                decimal = 0.5
-            else:
-                decimal = 1
-            return integer + decimal
-        else:
-            return price
-
     """
     2018/6/28
     修改使支持len>3的情形
@@ -235,14 +218,16 @@ class MyRobot:
         while True:
             filled_order = self.get_filled_order()
             if filled_order:
+                print(filled_order)
                 cum_qty = filled_order['cumQty']
-                # 修改成委托价格而不是成交价格
-                avg_px = filled_order['price']
+                order_px = filled_order['price']
+                avg_px = adjust_price(filled_order['avgPx'])
                 side = filled_order['side']
-                self.logger.info('----------------------------------------------------------------------')
-                self.logger.info(
-                    'side: %s, cum_qty: %s, avg_px: %s, orderID: %s' % (side, cum_qty, avg_px, filled_order['orderID']))
-                index = self.get_current_index(avg_px)
+                type = filled_order['ordType']
+                self.logger.info('--------------------------------------------------------------------------------')
+                self.logger.info('side: %s, type: %s, cum_qty: %s, order_px: %s, avg_px: %s, orderID: %s' %
+                                 (side, type, cum_qty, order_px, avg_px, filled_order['orderID']))
+                index = self.get_current_index(order_px)
                 price_base = 8
                 unit_amount = 0
                 if self.redis_cli.llen('open_price_list') > 0:
@@ -251,138 +236,105 @@ class MyRobot:
                     self.logger.info('index: %s, price_base: %s, unit_amount: %s' % (index, price_base, unit_amount))
                 price_table = self.price_table[str(price_base)]
 
-                if filled_order['symbol'] == 'XBTU18' and side == 'Buy':
-                    if cum_qty % 16 == 0:
-                        self.logger.info('XBTU18卖出: %s,价格: %s' % (cum_qty * 2, avg_px + price_table[3]))
-                        orderid = self.send_order('XBTU18', 'Sell', cum_qty * 2, avg_px + price_table[3])
-                        if orderid == 0:
-                            self.logger.info('委托失败，程序终止')
-                            break
-                    elif cum_qty % 2 == 0:
-                        if cum_qty % 8 == 0:
-                            price_buy = avg_px - price_base * 8
-                            price_sell = avg_px + price_table[2]
-                        elif cum_qty % 4 == 0:
-                            price_buy = avg_px - price_base * 4
-                            price_sell = avg_px + price_table[1]
+                if type == 'Market':
+                    if side == 'Buy':
+                        self.logger.info('建仓价格: %s, 数量: %s' % (avg_px, cum_qty))
+                        self.logger.info('rpush')
+                        self.redis_cli.rpush('open_price_list', avg_px)
+                        self.redis_cli.rpush('unit_amount_list', cum_qty)
+                        if self.redis_cli.get('base_price'):
+                            self.redis_cli.rpush('base_price_list', self.redis_cli.get('base_price'))
                         else:
-                            price_buy = avg_px - price_base * 2
-                            price_sell = avg_px + price_table[0]
-                        self.logger.info('XBTU18卖出: %s,价格: %s' % (cum_qty, price_sell))
-                        orderid = self.send_order('XBTU18', 'Sell', cum_qty, price_sell)
-                        if orderid == 0:
-                            self.logger.info('委托失败，程序终止')
-                            break
-
-                        self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty * 2, price_buy))
-                        orderid = self.send_order('XBTU18', 'Buy', cum_qty * 2, price_buy)
+                            self.logger.info('base_price未赋值')
+                            time.sleep(300)
+                        #
+                        llen = int(self.redis_cli.llen('open_price_list'))
+                        if llen > 1:
+                            price = float(self.redis_cli.lindex('open_price_list', llen - 2))
+                            for o in self.get_delegated_orders():
+                                if o['orderQty'] % 32 == 0 and o['side'] == 'Sell' and o['price'] < price:
+                                    self.amend_order(o['orderID'], o['orderQty'] / 2)
+                        price_base = float(self.redis_cli.get('base_price'))
+                        self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty, avg_px - price_base))
+                        orderid = self.send_order('XBTU18', 'Buy', cum_qty, avg_px - price_base)
                         if orderid == 0:
                             self.logger.info('委托失败，程序终止')
                             break
                     else:
-                        self.logger.info('cum_qty异常')
-                        break
-
-                elif filled_order['symbol'] == 'XBTU18' and side == 'Sell':
-                    if cum_qty % 32 == 0:
-                        self.logger.info('XBTUSD市价平仓: %s' % (unit_amount * 2))
-                        if self.send_order('XBTUSD', 'Buy', unit_amount * 2, 0, 'Market') == 0:
-                            self.logger.info('委托失败，程序终止')
-                            break
-                        #
-                        self.logger.info('撤销多余Sell委托')
-                        open_price = float(self.redis_cli.lindex('open_price_list', index))
-                        self.logger.info('open price: %s' % open_price)
-                        for o in self.get_delegated_orders():
-                            print(o)
-                            if o['side'] == 'Sell' and avg_px < o['price'] < open_price:
-                                self.logger.info('cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
-                                self.cancel_order(o['orderID'])
-                        # 平仓
-                        self.close_position(avg_px, unit_amount)
-                        #
                         self.logger.info('rpop')
-                        self.redis_cli.rpop('open_price_list')
+                        open_price = float(self.redis_cli.rpop('open_price_list'))
                         self.redis_cli.rpop('base_price_list')
                         self.redis_cli.rpop('unit_amount_list')
-                        self.logger.info('短信通知，已全部平仓，待重建仓位')
-                        self.sms_notify('重建仓位')
-                    elif cum_qty % 2 == 0:
-                        if cum_qty % 16 == 0:
-                            buy_price = avg_px - price_table[3]
-                            self.close_position(avg_px, unit_amount)
-                        elif cum_qty % 8 == 0:
-                            buy_price = avg_px - price_table[2]
-                        elif cum_qty % 4 == 0:
-                            buy_price = avg_px - price_table[1]
-                        else:
-                            buy_price = avg_px - price_table[0]
-                        self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty, buy_price))
-                        orderid = self.send_order('XBTU18', 'Buy', cum_qty, buy_price)
+                        self.logger.info('撤销多余委托')
+                        for o in self.get_delegated_orders():
+                            if o['price'] < open_price and o['side'] == 'Buy':
+                                self.logger.info(
+                                    'cancel order, orderID: %s, price: %s' % (o['orderID'], o['price']))
+                                self.cancel_order(o['orderID'])
+                        self.logger.info('市价开仓')
+                        orderid = self.send_order('XBTU18', 'Buy', unit_amount, 0, 'Market')
                         if orderid == 0:
                             self.logger.info('委托失败，程序终止')
                             break
-                    else:
-                        self.logger.info('cum_qty异常')
-                        break
-                elif filled_order['symbol'] == 'XBTUSD' and side == 'Sell':
-                    # 市价买入XBTU18
-                    orderid = self.send_order('XBTU18', 'Buy', cum_qty, 0, 'Market')
-                    times = 0
-                    while times < 20:
-                        self.logger.info('第%s次查询订单状态' % (times + 1))
-                        order_info = self.cli.Order.Order_getOrders(filter=json.dumps({"orderID": orderid})).result()
-                        # print(order_info)
-                        if len(order_info[0]) > 0 and order_info[0][0]['ordStatus'] == 'Filled':
-                            cum_qty = order_info[0][0]['cumQty']
-                            avg_px = MyRobot.adjust_price(order_info[0][0]['avgPx'])
-                            self.logger.info('rpush')
-                            self.redis_cli.rpush('open_price_list', avg_px)
-                            if self.redis_cli.get('base_price') and self.redis_cli.get('unit_amount'):
-                                self.redis_cli.rpush('base_price_list', self.redis_cli.get('base_price'))
-                                self.redis_cli.rpush('unit_amount_list', self.redis_cli.get('unit_amount'))
-                            else:
-                                self.logger.info('base_price或者unit_amount未赋值')
-                                time.sleep(300)
-                            #
-                            llen = int(self.redis_cli.llen('open_price_list'))
-                            if llen > 1:
-                                price = float(self.redis_cli.lindex('open_price_list', llen - 2))
-                                for o in self.get_delegated_orders():
-                                    if o['orderQty'] % 32 == 0 and o['side'] == 'Sell' and o['price'] < price:
-                                        self.amend_order(o['orderID'], o['orderQty'] / 2)
-                            price_base = float(self.redis_cli.get('base_price'))
-                            self.logger.info('cum_qty: %s, avg_px: %s' % (cum_qty, avg_px))
-                            self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty, avg_px - price_base))
-                            orderid = self.send_order('XBTU18', 'Buy', cum_qty, avg_px - price_base)
+                else:
+                    if side == 'Buy':
+                        if cum_qty % 16 == 0:
+                            self.logger.info('XBTU18卖出: %s,价格: %s' % (cum_qty * 2, order_px + price_table[3]))
+                            orderid = self.send_order('XBTU18', 'Sell', cum_qty * 2, order_px + price_table[3])
                             if orderid == 0:
                                 self.logger.info('委托失败，程序终止')
-                            break
+                                break
+                        elif cum_qty % 2 == 0:
+                            if cum_qty % 8 == 0:
+                                price_buy = order_px - price_base * 8
+                                price_sell = order_px + price_table[2]
+                            elif cum_qty % 4 == 0:
+                                price_buy = order_px - price_base * 4
+                                price_sell = order_px + price_table[1]
+                            else:
+                                price_buy = order_px - price_base * 2
+                                price_sell = order_px + price_table[0]
+                            self.logger.info('XBTU18卖出: %s,价格: %s' % (cum_qty, price_sell))
+                            orderid = self.send_order('XBTU18', 'Sell', cum_qty, price_sell)
+                            if orderid == 0:
+                                self.logger.info('委托失败，程序终止')
+                                break
 
-                        times += 1
-                        time.sleep(1)
-                elif filled_order['symbol'] == 'XBTUSD' and side == 'Buy':
-                    orderid = self.send_order('XBTU18', 'Sell', cum_qty, 0, 'Market')
-                    times = 0
-                    while times < 20:
-                        self.logger.info('第%s次查询订单状态' % (times + 1))
-                        order_info = self.cli.Order.Order_getOrders(filter=json.dumps({"orderID": orderid})).result()
-                        # print(order_info)
-                        if len(order_info[0]) > 0 and order_info[0][0]['ordStatus'] == 'Filled':
-                            self.logger.info('XBTU18完成市价委托')
+                            self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty * 2, price_buy))
+                            orderid = self.send_order('XBTU18', 'Buy', cum_qty * 2, price_buy)
+                            if orderid == 0:
+                                self.logger.info('委托失败，程序终止')
+                                break
+                    else:
+                        if cum_qty % 32 == 0:
+                            self.logger.info('撤销多余Sell委托')
+                            open_price = float(self.redis_cli.lindex('open_price_list', index))
+                            self.logger.info('open price: %s' % open_price)
+                            for o in self.get_delegated_orders():
+                                if o['side'] == 'Sell' and order_px < o['price'] < open_price:
+                                    self.logger.info('cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
+                                    self.cancel_order(o['orderID'])
+                            #
                             self.logger.info('rpop')
-                            open_price = float(self.redis_cli.rpop('open_price_list'))
+                            self.redis_cli.rpop('open_price_list')
                             self.redis_cli.rpop('base_price_list')
                             self.redis_cli.rpop('unit_amount_list')
-                            #
-                            for o in self.get_delegated_orders():
-                                if o['price'] < open_price and o['side'] == 'Buy':
-                                    self.logger.info(
-                                        'cancel order, orderID: %s, price: %s' % (o['orderID'], o['price']))
-                                    self.cancel_order(o['orderID'])
-                            break
-                        times += 1
-                        time.sleep(1)
+                            self.logger.info('已全部平仓，待重建仓位')
+                        elif cum_qty % 2 == 0:
+                            if cum_qty % 16 == 0:
+                                buy_price = order_px - price_table[3]
+                                self.close_position(order_px, unit_amount)
+                            elif cum_qty % 8 == 0:
+                                buy_price = order_px - price_table[2]
+                            elif cum_qty % 4 == 0:
+                                buy_price = order_px - price_table[1]
+                            else:
+                                buy_price = order_px - price_table[0]
+                            self.logger.info('XBTU18买入: %s,价格: %s' % (cum_qty, buy_price))
+                            orderid = self.send_order('XBTU18', 'Buy', cum_qty, buy_price)
+                            if orderid == 0:
+                                self.logger.info('委托失败，程序终止')
+                                break
                 #
                 self.redis_cli.sadd('filled_order_set', filled_order['orderID'])
 
@@ -398,12 +350,31 @@ class MyRobot:
                             bid_price, self.redis_cli.lindex('open_price_list', -1)))
                 #
                 if bid_price - last_open_price > self.re_position_thd:
-                    # self.logger.info('短信通知，重建仓位')
-                    self.sms_notify(
-                        '重建仓位 bid_price: %s, last_open_price: %s' % (
-                            bid_price, self.redis_cli.lindex('open_price_list', -1)))
-
+                    self.logger.info('重建仓位')
+                    self.logger.info('市价平仓')
+                    unit_amount = int(self.redis_cli.lindex('unit_amount_list', -1))
+                    orderid = self.send_order('XBTU18', 'Sell', unit_amount, 0, 'Market')
+                    if orderid == 0:
+                        self.logger.info('委托失败，程序终止')
+                        break
             time.sleep(0.2)
+
+
+def adjust_price(price):
+    import re
+    match = re.match(r"(\d+)\.(\d{2})", '%.2f' % price)
+    if match:
+        integer = int(match.group(1))
+        decimal = int(match.group(2))
+        if decimal < 25:
+            decimal = 0
+        elif decimal < 75:
+            decimal = 0.5
+        else:
+            decimal = 1
+        return integer + decimal
+    else:
+        return price
 
 
 def setup_logger():
