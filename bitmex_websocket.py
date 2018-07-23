@@ -24,13 +24,13 @@ class BitMEXWebsocket:
     MAX_TABLE_LEN = 200
     CONN_TIMEOUT = 15
 
-    def __init__(self, endpoint, symbol, api_key=None, api_secret=None):
+    def __init__(self, endpoint, symbols, api_key=None, api_secret=None):
         '''Connect to the websocket and initialize data stores.'''
         self.logger = logging.getLogger(__name__)
         self.logger.debug("Initializing WebSocket.")
 
         self.endpoint = endpoint
-        self.symbol = symbol
+        self.symbols = symbols
 
         if api_key is not None and api_secret is None:
             raise ValueError('api_secret is required if api_key is provided')
@@ -48,7 +48,7 @@ class BitMEXWebsocket:
         # Subscribe to all pertinent endpoints
         wsURL = self.__get_url()
         self.logger.info("Connecting to %s" % wsURL)
-        self.__connect(wsURL, symbol)
+        self.__connect(wsURL)
         self.logger.info('Connected to WS.')
         time.sleep(10)
         # Connected. Wait for partials
@@ -111,7 +111,7 @@ class BitMEXWebsocket:
     #
     def __reconnect(self):
         wsURL = self.__get_url()
-        self.__connect(wsURL, self.symbol)
+        self.__connect(wsURL)
         self.logger.info('ReConnected to WS.')
         time.sleep(10)
         # Connected. Wait for partials
@@ -119,7 +119,7 @@ class BitMEXWebsocket:
         # if self.api_key:
         #     self.__wait_for_account()
 
-    def __connect(self, wsURL, symbol):
+    def __connect(self, wsURL):
         '''Connect to the websocket in a thread.'''
         self.logger.debug("Starting thread")
 
@@ -185,12 +185,12 @@ class BitMEXWebsocket:
         '''
 
         # You can sub to orderBookL2 for all levels, or orderBook10 for top 10 levels & save bandwidth
-        symbolSubs = ["quoto", "order", "position"]
-        genericSubs = ["margin"]
+        #symbolSubs = ["quoto", "order", "position"]
+        #genericSubs = ["margin"]
 
         subscriptions = []
-        for symbol in ['XBTUSD', 'XBTU18']:
-            for sub in ["order"]:
+        for symbol in self.symbols:
+            for sub in ["order", "quote"]:
                 subscriptions.append('{}:{}'.format(sub, symbol))
         #subscriptions += genericSubs
 
