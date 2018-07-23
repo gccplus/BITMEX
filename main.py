@@ -9,8 +9,44 @@ import requests
 import redis
 import os
 
-
 # 钱包地址：3BMEXwPZU7VuPtrSxYyEYdKU6Ym8RV24CK
+"""
+order = {'orderID': '7262a79f-340d-9783-4a73-fe42c04669a4',
+         'clOrdID': '',
+         'clOrdLinkID': '',
+         'account': 509254,
+         'symbol': 'XBTZ18',
+         'side': 'Buy',
+         'simpleOrderQty': None,
+         'orderQty': 1996,
+         'price': 7798,
+         'displayQty': None,
+         'stopPx': None,
+         'pegOffsetValue': None,
+         'pegPriceType': '',
+         'currency': 'USD',
+         'settlCurrency': 'XBt',
+         'ordType': 'Limit',
+         'timeInForce': 'GoodTillCancel',
+         'execInst': '',
+         'contingencyType': '',
+         'exDestination': 'XBME',
+         'ordStatus': 'Filled',
+         'triggered': '',
+         'workingIndicator': False,
+         'ordRejReason': '',
+         'simpleLeavesQty': 0,
+         'leavesQty': 0,
+         'simpleCumQty': 0.25596704,
+         'cumQty': 1996,
+         'avgPx': 7798,
+         'multiLegReportingType': 'SingleSecurity',
+         'text': 'Submitted via API.',
+         'transactTime': '2018-07-23T07:31:58.326Z',
+         'timestamp': '2018-07-23T07:33:48.339Z'
+         }
+"""
+
 
 class MyRobot:
     lever = 5
@@ -53,13 +89,23 @@ class MyRobot:
     """
     2018/6/14 更新
     每次选取最邻近的订单
+    
+    2018/7/23 更新
+    解决当价格变动很大，订单没有按照顺序成交，导致重复订单
     """
 
-    def get_filled_order(self):
+    def get_filled_order(self, last_trans_qty=0, last_trans_side=''):
         recent_order = None
         for order in self.ws.open_orders():
             if order['ordStatus'] == 'Filled' and (
                     not self.redis_cli.sismember('filled_order_set', order['orderID'])):
+                # 目前仅考虑买单
+                if last_trans_side == 'Sell':
+                    if order['side'] == 'Buy' and order['cumQty'] != last_trans_qty:
+                        continue
+                elif last_trans_side == 'Buy':
+                    if order['side'] == 'Buy' and order['cumQty'] != last_trans_qty * 2:
+                        continue
                 if not recent_order:
                     recent_order = order
                 else:
@@ -190,8 +236,10 @@ class MyRobot:
 
     def run(self):
         self.logger.info('start')
+        last_trans_qty = 0
+        last_trans_side = ''
         while True:
-            filled_order = self.get_filled_order()
+            filled_order = self.get_filled_order(last_trans_qty, last_trans_side)
             if filled_order:
                 cum_qty = filled_order['cumQty']
                 order_px = filled_order['price']
@@ -325,6 +373,8 @@ class MyRobot:
                                 break
                 #
                 self.redis_cli.sadd('filled_order_set', filled_order['orderID'])
+                last_trans_side = side
+                last_trans_qty = cum_qty
 
             if self.redis_cli.llen('open_price_list') > 0:
                 ticker = self.get_ticker(self.contract_name)
