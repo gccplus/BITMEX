@@ -4,7 +4,6 @@ from bitmex_rest import bitmex
 import logging
 import logging.handlers
 import time
-import json
 import requests
 import redis
 import os
@@ -71,6 +70,7 @@ class MyRobot:
         test = False
         api_key = os.getenv('API_KEY')
         api_secret = os.getenv('API_SECRET')
+        print(api_key)
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -94,17 +94,17 @@ class MyRobot:
     解决当价格变动很大，订单没有按照顺序成交，导致重复订单
     """
 
-    def get_filled_order(self, last_trans_qty=0, last_trans_side=''):
+    def get_filled_order(self, last_trans_qty=0, last_trans_side='', last_trans_type=''):
         recent_order = None
         for order in self.ws.open_orders():
             if order['ordStatus'] == 'Filled' and (
                     not self.redis_cli.sismember('filled_order_set', order['orderID'])):
                 # 目前仅考虑买单
-                if last_trans_side == 'Sell':
-                    if order['side'] == 'Buy' and order['cumQty'] != last_trans_qty:
+                if last_trans_side == 'Sell' and order['ordType'] == 'Limit':
+                    if order['side'] == 'Buy' and last_trans_type == 'Limit' and order['cumQty'] != last_trans_qty:
                         continue
-                elif last_trans_side == 'Buy':
-                    if order['side'] == 'Buy' and order['cumQty'] != last_trans_qty * 2:
+                elif last_trans_side == 'Buy' and order['ordType'] == 'Limit':
+                    if order['side'] == 'Buy' and last_trans_type == 'Limit' and order['cumQty'] != last_trans_qty * 2:
                         continue
                 if not recent_order:
                     recent_order = order
@@ -113,22 +113,41 @@ class MyRobot:
                         recent_order = order
         return recent_order
 
+    # 2018/7/26 添加
+    def get_unfilled_order(self):
+        for o in self.ws.open_orders():
+            if o['ordStatus'] == 'New' or o['ordStatus'] == 'PartiallyFilled':
+                yield o
+
     """
     2018/7/23 更新
     增加异常多次请求
+    
+    2018/7/25
+    修改过滤条件, 增加PartiallyFilled
+    
+    2018/7/26
+    重写函数，并命名为get_unfilled_order
     """
 
     def get_delegated_orders(self):
         times = 0
-        while times < 500:
+        result = []
+        while times < 200:
             self.logger.info('第%s次获取未成交委托' % (times + 1))
             try:
-                orders = self.cli.Order.Order_getOrders(filter=json.dumps({"ordStatus": 'New'})).result()
+                orders = self.cli.Order.Order_getOrders(reverse=True).result()
             except Exception as e:
                 self.logger.error('get orders error: %s' % e)
+                time.sleep(1)
             else:
-                return orders[0]
+                for o in orders[0]:
+                    if o['ordStatus'] == 'New' or o['ordStatus'] == 'PartiallyFilled':
+                        result.append(o)
+                break
             times += 1
+
+        return result
 
     def get_ticker(self, symbol):
         # tickers = self.ws.get_ticker()
@@ -144,7 +163,7 @@ class MyRobot:
         times = 0
         result = 0
         flag = False
-        for o in self.get_delegated_orders():
+        for o in self.get_unfilled_order():
             # print('side:%s, price:%s, orderid:%s' % (o['side'], o['price'], o['orderID']))
             if o['side'] == side and o['price'] == price:
                 flag = True
@@ -205,6 +224,7 @@ class MyRobot:
                 self.cli.Order.Order_amend(orderID=orderid, orderQty=qty).result()
             except Exception as e:
                 logging.error('修改订单错误: %s' % e)
+                time.sleep(1)
             else:
                 self.logger.info('修改成功')
                 break
@@ -238,8 +258,9 @@ class MyRobot:
         self.logger.info('start')
         last_trans_qty = 0
         last_trans_side = ''
+        last_trans_type = ''
         while True:
-            filled_order = self.get_filled_order(last_trans_qty, last_trans_side)
+            filled_order = self.get_filled_order(last_trans_qty, last_trans_side, last_trans_type)
             if filled_order:
                 cum_qty = filled_order['cumQty']
                 order_px = filled_order['price']
@@ -327,10 +348,9 @@ class MyRobot:
                         if cum_qty % 32 == 0:
                             self.logger.info('撤销多余Buy委托')
                             open_price = float(self.redis_cli.lindex('open_price_list', index))
-                            delegated_orders = self.get_delegated_orders()
                             if open_price < order_px:
                                 self.logger.info('open price: %s' % open_price)
-                                for o in delegated_orders:
+                                for o in self.get_unfilled_order():
                                     if o['side'] == 'Buy' and o['price'] < open_price:
                                         self.logger.info(
                                             'cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
@@ -346,7 +366,7 @@ class MyRobot:
 
                             self.logger.info('撤销多余Sell委托')
                             self.logger.info('open price: %s' % open_price)
-                            for o in delegated_orders:
+                            for o in self.get_unfilled_order():
                                 if o['side'] == 'Sell' and order_px < o['price'] < open_price:
                                     self.logger.info(
                                         'cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
@@ -375,6 +395,7 @@ class MyRobot:
                 self.redis_cli.sadd('filled_order_set', filled_order['orderID'])
                 last_trans_side = side
                 last_trans_qty = cum_qty
+                last_trans_type = ord_type
 
             if self.redis_cli.llen('open_price_list') > 0:
                 ticker = self.get_ticker(self.contract_name)
@@ -389,7 +410,7 @@ class MyRobot:
                 #
                 if bid_price - last_open_price > self.re_position_thd:
                     min_sell_price = 100000
-                    for o in self.get_delegated_orders():
+                    for o in self.get_unfilled_order():
                         if o['side'] == 'Sell' and o['price'] < min_sell_price:
                             min_sell_price = o['price']
                     if min_sell_price - bid_price > 100:
@@ -404,7 +425,7 @@ class MyRobot:
                         self.redis_cli.rpop('base_price_list')
                         self.redis_cli.rpop('unit_amount_list')
                         self.logger.info('撤销多余委托')
-                        for o in self.get_delegated_orders():
+                        for o in self.get_unfilled_order():
                             if o['price'] < open_price and o['side'] == 'Buy':
                                 self.logger.info(
                                     'cancel order, orderID: %s, price: %s' % (o['orderID'], o['price']))
