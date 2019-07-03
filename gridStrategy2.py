@@ -23,8 +23,8 @@ class GridStrategy:
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = 'XoOBQg99YTRWIDQ3xnScgXpF'
-        api_secret = 'C8zroyC9ZMoFV2oZMCvya24ngIwkFp104KKXohyXJ5Wk3TwX'
+        api_key = 'dbS7FklMUz4A0Ftf_0eb-khj'
+        api_secret = 'UGbHj7ucCrz1xz5slMhPPAV72wemdXxxMk4J2OS_73foWObM'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -37,10 +37,10 @@ class GridStrategy:
                                   api_key=api_key,
                                   api_secret=api_secret)
         #init redis client
-        #self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
         # test reids
-        #self.redis_cli.sadd(self.filled_order_set, 'test orderid')
+        self.redis_cli.sadd(self.filled_order_set, 'test orderid')
 
         # threading lock
         self._value_lock = threading.Lock()
