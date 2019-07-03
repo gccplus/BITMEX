@@ -144,7 +144,7 @@ class GridStrategy:
             redis_order = self.redis_cli.lindex(name, i)
             json_redis_order = json.loads(redis_order)
             if json_redis_order['orderID'] == order_id:
-                return self.redis_cli.lrem(name, order_id, 1)
+                return self.redis_cli.lrem(name, 1, order_id)
         return 0
 
     def redis_insert_sell(self, name, item):
