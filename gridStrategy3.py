@@ -338,7 +338,7 @@ class GridStrategy:
                             'side': 'Buy',
                             'orderQty': self.unit_amount,
                             'ordType': 'Limit',
-                            'price': order_px + self.price_dist * i - self.profit_dist
+                            'price': order_px - self.price_dist * i - self.profit_dist
                         })
                     # Sell Order
                     for i in range(self.final_position - self.init_position):
