@@ -374,6 +374,8 @@ class GridStrategy:
 
                         last_sell_qty = cum_qty
                     else:
+                        self.logger.info(self.unfilled_buy_list)
+                        self.logger.info(order_id)
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
                         price = order_px + self.profit_dist
