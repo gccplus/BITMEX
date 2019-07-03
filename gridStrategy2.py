@@ -13,9 +13,9 @@ class GridStrategy:
     # 开仓价格
     open_price = 11000
     # 价格间距
-    price_dist = 110
+    price_dist = 100
     # 利润间距
-    profit_dist = 55
+    profit_dist = 50
 
     contract_name = 'XBTUSD'
     filled_order_set = 'filled_order_set'
@@ -23,8 +23,8 @@ class GridStrategy:
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = os.getenv('API_KEY2')
-        api_secret = os.getenv('API_SECRET2')
+        api_key = '5OoqgVd5vY4uNl4Xu7zp0UfF'
+        api_secret = 'lz2oTY6ADjs4pJTFxFXZ3kSh-tIk_ELoo5eef7zvgu_rHjjn'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -38,6 +38,9 @@ class GridStrategy:
                                   api_secret=api_secret)
         #init redis client
         self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+        # test reids
+        self.redis_cli.sadd(self.filled_order_set, 'test orderid')
 
         # threading lock
         self._value_lock = threading.Lock()
