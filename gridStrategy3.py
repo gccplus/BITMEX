@@ -24,16 +24,16 @@ class GridStrategy:
     # 单位数量,每一个fragment不一样
     unit_amount = 1
 
-    contract_name = 'XBTUSD'
+    contract_name = 'XBTZ19'
     redis_fragment_list = 'redis_fragment_list'
-    filled_order_set = 'filled_order_set3'
+    filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = os.getenv('API_KEY2')
-        api_secret = os.getenv('API_SECRET2')
+        api_key = 'dbS7FklMUz4A0Ftf_0eb-khj'
+        api_secret = 'UGbHj7ucCrz1xz5slMhPPAV72wemdXxxMk4J2OS_73foWObM'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -292,8 +292,7 @@ class GridStrategy:
 
                 # init_position最好是素数,默认11
                 if cum_qty % self.init_position == 0:
-                    if order_px > self.open_price:
-                        # 新开仓位
+                    if order_px < self.open_price:
                         self.redis_cli.rpop(self.redis_fragment_list)
                         self.logger.info('清空redis: %s, %s' % (self.unfilled_buy_list, self.unfilled_sell_list))
                         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
@@ -332,41 +331,41 @@ class GridStrategy:
                     self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
 
                     new_orders = []
-                    # Sell Order
+                    # Buy Order
                     for i in range(self.init_position):
                         new_orders.append({
                             'symbol': symbol,
-                            'side': 'Sell',
+                            'side': 'Buy',
                             'orderQty': self.unit_amount,
                             'ordType': 'Limit',
-                            'price': order_px + self.price_dist * i + self.profit_dist
+                            'price': order_px + self.price_dist * i - self.profit_dist
                         })
-                    # Buy Order
+                    # Sell Order
                     for i in range(self.final_position - self.init_position):
                         new_orders.append({
                             'symbol': symbol,
                             'side': 'Buy',
                             'orderQty': self.unit_amount,
                             'ordType': 'Limit',
-                            'price': order_px - self.price_dist * (i + 1)
+                            'price': order_px + self.price_dist * (i + 1)
                         })
                     self.new_bulk_orders(new_orders)
 
                 else:
                     if side == 'Sell':
-                        if 0 < last_sell_qty != cum_qty:
-                            self.redis_cli.rpop(self.redis_fragment_list)
-                            self.cancel_all(symbol, {'orderQty': last_sell_qty})
-                            fm = json.loads(self.redis_cli.lindex(self.redis_fragment_list, -1))
-                            self.logger.info(fm)
-                            self.open_price = fm['open_price']
-                            self.price_dist = fm['price_dist']
-                            self.profit_dist = fm['profit_dist']
-                            self.init_position = fm['init_position']
-                            self.final_position = fm['final_position']
-                            self.unit_amount = fm['unit_amount']
-                            self.unfilled_buy_list = fm['buy_list_name']
-                            self.unfilled_sell_list = fm['sell_list_name']
+                        # if 0 < last_sell_qty != cum_qty:
+                        #     self.redis_cli.rpop(self.redis_fragment_list)
+                        #     self.cancel_all(symbol, {'orderQty': last_sell_qty})
+                        #     fm = json.loads(self.redis_cli.lindex(self.redis_fragment_list, -1))
+                        #     self.logger.info(fm)
+                        #     self.open_price = fm['open_price']
+                        #     self.price_dist = fm['price_dist']
+                        #     self.profit_dist = fm['profit_dist']
+                        #     self.init_position = fm['init_position']
+                        #     self.final_position = fm['final_position']
+                        #     self.unit_amount = fm['unit_amount']
+                        #     self.unfilled_buy_list = fm['buy_list_name']
+                        #     self.unfilled_sell_list = fm['sell_list_name']
 
                         self.redis_rem(self.unfilled_sell_list, order_id)
                         price = order_px - self.profit_dist

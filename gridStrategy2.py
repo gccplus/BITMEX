@@ -6,8 +6,6 @@ import logging.handlers
 import time
 import redis
 import threading
-import os
-
 
 class GridStrategy:
     # 开仓价格
