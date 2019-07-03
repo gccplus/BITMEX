@@ -382,6 +382,7 @@ class GridStrategy:
                         self.send_order(symbol, 'Sell', self.unit_amount, price)
                         buy_amount += 1
 
+
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
             time.sleep(0.2)
