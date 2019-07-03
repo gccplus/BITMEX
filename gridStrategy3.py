@@ -18,7 +18,7 @@ class GridStrategy:
     # 利润间距
     profit_dist = 2
     # 初始仓位
-    init_position = 11
+    init_position = 19
     # 最终仓位
     final_position = 40
     # 单位数量,每一个fragment不一样
