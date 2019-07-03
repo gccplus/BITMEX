@@ -4,7 +4,6 @@ from bitmex_rest import bitmex
 import logging
 import logging.handlers
 import time
-import requests
 import redis
 import os
 
@@ -56,6 +55,7 @@ class MyRobot:
         '8': [4, 10, 21, 43],
         '12': [6, 15, 31, 64],
         '16': [8, 20, 42, 85],
+        '24': [12, 30, 63, 127],
         '32': [16, 40, 84, 170]
     }
     open_price_list = 'open_price_list'
@@ -70,9 +70,10 @@ class MyRobot:
         test = False
         api_key = os.getenv('API_KEY')
         api_secret = os.getenv('API_SECRET')
-        print(api_key)
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
+
+        self.logger.info('APIKEY: %s' % api_key)
         if test:
             url = test_url
         else:
@@ -82,7 +83,7 @@ class MyRobot:
                                   api_secret=api_secret)
 
         # init redis client
-        self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        self.redis_cli = redis.Redis(host='35.230.143.112', password='jsgx1912', port=6379, decode_responses=True)
 
         self.last_sms_time = 0
 
@@ -115,9 +116,11 @@ class MyRobot:
 
     # 2018/7/26 添加
     def get_unfilled_order(self):
+        unfilled_orders = []
         for o in self.ws.open_orders():
             if o['ordStatus'] == 'New' or o['ordStatus'] == 'PartiallyFilled':
-                yield o
+                unfilled_orders.append(o)
+        return unfilled_orders
 
     """
     2018/7/23 更新
@@ -162,19 +165,13 @@ class MyRobot:
     def send_order(self, symbol, side, qty, price, ordtype='Limit'):
         times = 0
         result = 0
-        flag = False
-        for o in self.get_unfilled_order():
-            # print('side:%s, price:%s, orderid:%s' % (o['side'], o['price'], o['orderID']))
+        for o in self.get_delegated_orders():
             if o['side'] == side and o['price'] == price:
-                flag = True
-                break
+                self.logger.info('委托已存在, orderid: %s' % o['orderID'])
+                return 1
         while times < 500:
             self.logger.info('第%s次发起订单委托' % (times + 1))
             if ordtype == 'Limit':
-                if flag:
-                    self.logger.info('委托已存在')
-                    result = 1
-                    break
                 try:
                     order = self.cli.Order.Order_new(symbol=symbol, side=side, orderQty=qty, price=price,
                                                      ordType=ordtype).result()
@@ -182,7 +179,6 @@ class MyRobot:
                     self.logger.error('订单error: %s,1秒后重试' % e)
                     time.sleep(1)
                 else:
-                    # print(order)
                     self.logger.info('委托成功')
                     result = order[0]['orderID']
                     break
@@ -193,7 +189,6 @@ class MyRobot:
                     self.logger.error('订单error: %s,1秒后重试' % e)
                     time.sleep(1)
                 else:
-                    # print(order)
                     result = order[0]['orderID']
                     break
             times += 1
@@ -210,7 +205,6 @@ class MyRobot:
                 self.logger.error('撤销错误: %s, 1秒后重试' % e)
                 time.sleep(1)
             else:
-                # print(order)
                 result = True
                 break
             times += 1
@@ -259,6 +253,7 @@ class MyRobot:
         last_trans_qty = 0
         last_trans_side = ''
         last_trans_type = ''
+        last_unit_amount = 0
         while True:
             filled_order = self.get_filled_order(last_trans_qty, last_trans_side, last_trans_type)
             if filled_order:
@@ -272,10 +267,8 @@ class MyRobot:
                                  (side, ord_type, cum_qty, order_px, avg_px, filled_order['orderID']))
                 index = self.get_current_index(order_px)
                 price_base = 8
-                # unit_amount = 998
                 if self.redis_cli.llen('open_price_list') > 0:
                     price_base = int(self.redis_cli.lindex('base_price_list', index))
-                    # unit_amount = int(self.redis_cli.lindex('unit_amount_list', index))
                     self.logger.info('index: %s, price_base: %s' % (index, price_base))
                 price_table = self.price_table[str(price_base)]
 
@@ -290,16 +283,6 @@ class MyRobot:
                         else:
                             self.logger.info('base_price未赋值')
                             time.sleep(300)
-                        """
-                        2018/7/18
-                        取消修改委托数量
-                        """
-                        # llen = int(self.redis_cli.llen('open_price_list'))
-                        # if llen > 1:
-                        #     price = float(self.redis_cli.lindex('open_price_list', llen - 2))
-                        #     for o in self.get_delegated_orders():
-                        #         if o['orderQty'] % 32 == 0 and o['side'] == 'Sell' and o['price'] < price:
-                        #             self.amend_order(o['orderID'], o['orderQty'] / 2)
                         price_base = float(self.redis_cli.get('base_price'))
                         self.logger.info('买入: %s,价格: %s' % (cum_qty, avg_px - price_base))
                         orderid = self.send_order(self.contract_name, 'Buy', cum_qty, avg_px - price_base)
@@ -307,9 +290,9 @@ class MyRobot:
                             self.logger.info('委托失败，程序终止')
                             break
                     else:
-                        self.logger.info('平仓  仓位: %s, 价格: %a' % (cum_qty, avg_px))
-                        self.logger.info('市价开启新的仓位')
-                        orderid = self.send_order(self.contract_name, 'Buy', cum_qty, 0, 'Market')
+                        self.logger.info('平仓  仓位: %s, 价格: %s' % (cum_qty, avg_px))
+                        self.logger.info('市价开启新的仓位  仓位: %s' % last_unit_amount)
+                        orderid = self.send_order(self.contract_name, 'Buy', last_unit_amount, 0, 'Market')
                         if orderid == 0:
                             self.logger.info('委托失败，程序终止')
                             break
@@ -348,9 +331,10 @@ class MyRobot:
                         if cum_qty % 32 == 0:
                             self.logger.info('撤销多余Buy委托')
                             open_price = float(self.redis_cli.lindex('open_price_list', index))
+                            unfilled_orders = self.get_delegated_orders()
                             if open_price < order_px:
                                 self.logger.info('open price: %s' % open_price)
-                                for o in self.get_unfilled_order():
+                                for o in unfilled_orders:
                                     if o['side'] == 'Buy' and o['price'] < open_price:
                                         self.logger.info(
                                             'cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
@@ -366,7 +350,7 @@ class MyRobot:
 
                             self.logger.info('撤销多余Sell委托')
                             self.logger.info('open price: %s' % open_price)
-                            for o in self.get_unfilled_order():
+                            for o in unfilled_orders:
                                 if o['side'] == 'Sell' and order_px < o['price'] < open_price:
                                     self.logger.info(
                                         'cancel order orderID: %s, price: %s' % (o['orderID'], o['price']))
@@ -410,36 +394,42 @@ class MyRobot:
                 #
                 if bid_price - last_open_price > self.re_position_thd:
                     min_sell_price = 100000
-                    for o in self.get_unfilled_order():
+                    for o in self.get_delegated_orders():
                         if o['side'] == 'Sell' and o['price'] < min_sell_price:
                             min_sell_price = o['price']
                     if min_sell_price - bid_price > 100:
-                        self.sms_notify('重建仓位, bid_price: %s, last_open_price: %s' % (
-                            bid_price, self.redis_cli.lindex('open_price_list', -1)))
-                        orderid = self.send_order(self.contract_name, 'Sell', unit_amount, 0, 'Market')
-                        if orderid == 0:
-                            self.logger.info('委托失败，程序终止')
-                            break
                         self.logger.info('rpop')
                         open_price = float(self.redis_cli.rpop('open_price_list'))
                         self.redis_cli.rpop('base_price_list')
                         self.redis_cli.rpop('unit_amount_list')
                         self.logger.info('撤销多余委托')
-                        for o in self.get_unfilled_order():
+                        # PartiallyFilled 需要特别处理
+                        unfilled_amount = 0
+                        for o in self.get_delegated_orders():
                             if o['price'] < open_price and o['side'] == 'Buy':
+                                if o['ordStatus'] == 'PartiallyFilled':
+                                    self.logger.info('已部分成交: %s' % o['cumQty'])
+                                    unfilled_amount += o['cumQty']
+
                                 self.logger.info(
                                     'cancel order, orderID: %s, price: %s' % (o['orderID'], o['price']))
                                 self.cancel_order(o['orderID'])
+                        # self.sms_notify('重建仓位, bid_price: %s, last_open_price: %s' % (
+                        #     bid_price, self.redis_cli.lindex('open_price_list', -1)))
+                        orderid = self.send_order(self.contract_name, 'Sell', unit_amount + unfilled_amount, 0,
+                                                  'Market')
+                        if orderid == 0:
+                            self.logger.info('委托失败，程序终止')
+                            break
+                        last_unit_amount = unit_amount
             time.sleep(0.2)
 
 
-"""
-正常下单的价格精度是0.5，但是成交价格的精度不是0.5
-此函数用来统一下单价格精度
-"""
-
-
 def adjust_price(price):
+    """
+    正常下单的价格精度是0.5，但是成交价格的精度不是0.5
+    此函数用来统一下单价格精度
+    """
     import re
     match = re.match(r"(\d+)\.(\d{2})", '%.2f' % price)
     if match:
@@ -458,7 +448,7 @@ def adjust_price(price):
 
 def setup_logger():
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)  # Change this to DEBUG if you want a lot more info
+    logger.setLevel(logging.DEBUG)  # Change this to DEBUG if you want a lot more info
     ch = logging.StreamHandler()
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     ch.setFormatter(formatter)

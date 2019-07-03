@@ -190,9 +190,8 @@ class BitMEXWebsocket:
 
         subscriptions = []
         for symbol in self.symbols:
-            for sub in ["order", "quote"]:
+            for sub in ["order", 'quote']:
                 subscriptions.append('{}:{}'.format(sub, symbol))
-        #subscriptions += genericSubs
 
         urlParts = list(urllib.parse.urlparse(self.endpoint))
         urlParts[0] = urlParts[0].replace('http', 'ws')
