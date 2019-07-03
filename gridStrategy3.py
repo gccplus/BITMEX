@@ -344,7 +344,7 @@ class GridStrategy:
                     for i in range(self.final_position - self.init_position):
                         new_orders.append({
                             'symbol': symbol,
-                            'side': 'Buy',
+                            'side': 'Sell',
                             'orderQty': self.unit_amount,
                             'ordType': 'Limit',
                             'price': order_px + self.price_dist * (i + 1)
