@@ -18,7 +18,7 @@ class GridStrategy:
     # 利润间距
     profit_dist = 2
     # 初始仓位
-    init_position = 19
+    init_position = 17
     # 最终仓位
     final_position = 40
     # 单位数量,每一个fragment不一样
@@ -347,7 +347,7 @@ class GridStrategy:
                             'side': 'Sell',
                             'orderQty': self.unit_amount,
                             'ordType': 'Limit',
-                            'price': order_px + self.price_dist * (i + 1)
+                            'price': order_px + self.price_dist * i + self.profit_dist
                         })
                     self.new_bulk_orders(new_orders)
 
@@ -372,16 +372,14 @@ class GridStrategy:
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
 
-                        last_sell_qty = cum_qty
+                        # last_sell_qty = cum_qty
                     else:
-                        self.logger.info(self.unfilled_buy_list)
-                        self.logger.info(order_id)
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
-                        price = order_px + self.profit_dist
-                        self.send_order(symbol, 'Sell', self.unit_amount, price)
-                        buy_amount += 1
-
+                        if order_px > self.open_price - self.price_dist * self.init_position + self.profit_dist:
+                            price = order_px + self.profit_dist
+                            self.send_order(symbol, 'Sell', self.unit_amount, price)
+                            buy_amount += 1
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
