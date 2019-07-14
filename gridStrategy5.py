@@ -25,7 +25,7 @@ class GridStrategy:
     unit_amount = 1
 
     contract_name = 'XBTZ19'
-    redis_fragment_list = 'redis_fragment_list'
+    redis_fragment_list = 'redis_fragment_list_1'
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
