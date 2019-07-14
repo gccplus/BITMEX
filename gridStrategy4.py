@@ -17,14 +17,14 @@ class GridStrategy:
     # 利润间距
     profit_dist = 2
     # 初始仓位
-    init_position = 13
+    init_position = 51
 
     # 最终仓位
-    final_position = 40
+    final_position = 102
     # 单位数量,每一个fragment不一样
     unit_amount = 1
 
-    contract_name = 'XBTZ19'
+    contract_name = 'XBTUSD'
     redis_fragment_list = 'redis_fragment_list'
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
@@ -337,15 +337,18 @@ class GridStrategy:
 
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
-                        if order_px > self.open_price - self.price_dist * self.init_position + self.profit_dist:
-                            price = order_px + self.profit_dist
-                            self.send_order(symbol, 'Sell', self.unit_amount, price)
-                            buy_amount += 1
-                        else:
-                            self.redis_cli.rpop(self.redis_fragment_list)
-                            self.cancel_all(symbol, {'orderQty': cum_qty})
+                        price = order_px + self.profit_dist
+                        self.send_order(symbol, 'Sell', self.unit_amount, price)
+                        buy_amount += 1
+                        # if order_px > self.open_price - self.price_dist * self.init_position + self.profit_dist:
+                        #     price = order_px + self.profit_dist
+                        #     self.send_order(symbol, 'Sell', self.unit_amount, price)
+                        #     buy_amount += 1
+                        # else:
+                        #     self.redis_cli.rpop(self.redis_fragment_list)
+                        #     self.cancel_all(symbol, {'orderQty': cum_qty})
 
-                            # new order
+                            #
                             #self.send_order(symbol, 'Buy', self.unit_amount, price)
 
                         last_buy_qty = cum_qty
