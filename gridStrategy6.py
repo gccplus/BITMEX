@@ -68,11 +68,11 @@ class GridStrategy:
         else:
             self.logger.info('当前redis为空')
 
-    def get_filled_order(self):
+    def get_filled_order(self, symbol):
         first_buy_order = None
         first_sell_order = None
         for order in self.ws.open_orders():
-            if order['ordStatus'] == 'Filled' and (
+            if order['ordStatus'] == 'Filled' and order['symbol'] == symbol and (
                     not self.redis_cli.sismember(self.filled_order_set, order['orderID'])):
                 if order['side'] == 'Buy':
                     if not first_buy_order:

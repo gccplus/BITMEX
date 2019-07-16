@@ -26,14 +26,15 @@ class hedgingStrategy:
     unit_amount = 1
 
     contract_name = 'XBTUSD'
-    redis_fragment_list = 'redis_fragment_list'
-    filled_order_set = 'filled_order_set3'
+    redis_fragment_list = 'redis_fragment_list_0'
+    filled_order_set = 'filled_order_set'
+    setting_ht = 'grid_setting_hash'
 
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = os.getenv('API_KEY2')
-        api_secret = os.getenv('API_SECRET2')
+        api_key = 'FTMIWlkxPjJOpKAbo51aGBqe'
+        api_secret = 'MzmW56CSA4OZJRAcYCSm9r96s8pzmqJwCJUxegaWaHoXrxwQ'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
