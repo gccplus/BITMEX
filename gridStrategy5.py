@@ -17,15 +17,15 @@ class GridStrategy:
     # 利润间距
     profit_dist = 2
     # 初始仓位
-    init_position = 51
+    init_position = 47
 
     # 最终仓位
-    final_position = 102
+    final_position = 94
     # 单位数量,每一个fragment不一样
     unit_amount = 1
 
     contract_name = 'XBTZ19'
-    redis_fragment_list = 'redis_fragment_list'
+    redis_fragment_list = 'redis_fragment_list_1'
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
