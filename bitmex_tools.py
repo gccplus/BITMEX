@@ -25,8 +25,8 @@ class hedgingStrategy:
     # 单位数量,偶数
     unit_amount = 1
 
-    contract_name = 'XBTUSD'
-    redis_fragment_list = 'redis_fragment_list_0'
+    contract_name = 'XBTZ19'
+    redis_fragment_list = 'redis_fragment_list_1'
     filled_order_set = 'filled_order_set'
 
     def __init__(self):
