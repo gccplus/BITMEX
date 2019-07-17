@@ -25,8 +25,8 @@ class hedgingStrategy:
     # 单位数量,偶数
     unit_amount = 1
 
-    contract_name = 'XBTZ19'
-    redis_fragment_list = 'redis_fragment_list_1'
+    contract_name = 'XBTUSD'
+    redis_fragment_list = 'redis_fragment_list_0'
     filled_order_set = 'filled_order_set'
 
     def __init__(self):
@@ -129,8 +129,8 @@ class hedgingStrategy:
     def sync_to_redis(self):
         fm = json.loads(self.redis_cli.lindex(self.redis_fragment_list, -1))
         unit_amount = fm['unit_amount']
-        unfilled_buy_list = 'unfilled_buy_list_1'
-        unfilled_sell_list = 'unfilled_sell_list_1'
+        unfilled_buy_list = 'unfilled_buy_list_0'
+        unfilled_sell_list = 'unfilled_sell_list_0'
         self.redis_cli.ltrim(unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(unfilled_sell_list, 1, 0)
         for o in self.get_delegated_orders({'orderQty': unit_amount, 'symbol': self.contract_name}):
