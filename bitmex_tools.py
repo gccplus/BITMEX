@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from bitmex_websocket import BitMEXWebsocket
+#from bitmex_websocket import BitMEXWebsocket
 from bitmex_rest import bitmex
 import logging
 import logging.handlers
@@ -8,7 +8,7 @@ import redis
 import threading
 import json
 import sys
-import os
+#import os
 
 
 class hedgingStrategy:
