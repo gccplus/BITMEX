@@ -63,8 +63,8 @@ class GridStrategy:
             self.init_position = fm['init_position']
             self.final_position = fm['final_position']
             self.unit_amount = fm['unit_amount']
-            self.unfilled_buy_list = fm['buy_list_name']
-            self.unfilled_sell_list = fm['sell_list_name']
+            self.unfilled_buy_list = 'unfilled_buy_list_1'
+            self.unfilled_sell_list = 'unfilled_sell_list_1'
         else:
             self.logger.info('当前redis为空')
 
@@ -314,7 +314,6 @@ class GridStrategy:
 
                 else:
                     if side == 'Sell':
-
                         self.redis_rem(self.unfilled_sell_list, order_id)
                         price = order_px - self.profit_dist
                         self.send_order(symbol, 'Buy', self.unit_amount, price)

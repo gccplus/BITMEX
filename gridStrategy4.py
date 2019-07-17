@@ -63,8 +63,8 @@ class GridStrategy:
             self.init_position = fm['init_position']
             self.final_position = fm['final_position']
             self.unit_amount = fm['unit_amount']
-            self.unfilled_buy_list = fm['buy_list_name']
-            self.unfilled_sell_list = fm['sell_list_name']
+            self.unfilled_buy_list = 'unfilled_buy_list_0'
+            self.unfilled_sell_list = 'unfilled_sell_list_0'
         else:
             self.logger.info('当前redis为空')
 
