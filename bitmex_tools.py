@@ -61,8 +61,8 @@ class hedgingStrategy:
             self.init_position = last_fm['init_position']
             self.final_position = last_fm['final_position']
             self.unit_amount = last_fm['unit_amount']
-            self.unfilled_buy_list = last_fm['buy_list_name']
-            self.unfilled_sell_list = last_fm['sell_list_name']
+            self.unfilled_buy_list = 'unfilled_buy_list_1'
+            self.unfilled_sell_list = 'unfilled_sell_list_1'
         else:
             self.logger.info('当前redis为空')
 

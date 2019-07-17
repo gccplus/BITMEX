@@ -267,7 +267,7 @@ class GridStrategy:
                     self.price_dist = float(self.redis_cli.hget(self.setting_ht, 'price_dist'))
                     self.profit_dist = float(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
 
-                    fragment_amount = self.redis_cli.llen(self.redis_fragment_list)
+                    #fragment_amount = self.redis_cli.llen(self.redis_fragment_list)
                     redis_item = {
                         'open_price': order_px,
                         'unit_amount': int(cum_qty / self.init_position),
@@ -275,8 +275,8 @@ class GridStrategy:
                         'final_position': self.final_position,
                         'price_dist': self.price_dist,
                         'profit_dist': self.profit_dist,
-                        'sell_list_name': 'unfilled_sell_list_%d' % fragment_amount,
-                        'buy_list_name': 'unfilled_buy_list_%d' % fragment_amount,
+                        'sell_list_name': 'unfilled_sell_list_0',
+                        'buy_list_name': 'unfilled_buy_list_0',
                     }
 
                     self.redis_cli.rpush(self.redis_fragment_list, json.dumps(redis_item))
