@@ -28,13 +28,12 @@ class hedgingStrategy:
     contract_name = 'XBTUSD'
     redis_fragment_list = 'redis_fragment_list_0'
     filled_order_set = 'filled_order_set'
-    setting_ht = 'grid_setting_hash'
 
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = 'FTMIWlkxPjJOpKAbo51aGBqe'
-        api_secret = 'MzmW56CSA4OZJRAcYCSm9r96s8pzmqJwCJUxegaWaHoXrxwQ'
+        api_key = 'RbKv_8cp9-EM5sPKhM2-tcIh'
+        api_secret = '6VEYWM7x6Cg5Uo3iTNAgD997tvgYT4711eXqTXgU6dj7cCoB'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -134,7 +133,7 @@ class hedgingStrategy:
         unfilled_sell_list = fm['sell_list_name']
         self.redis_cli.ltrim(unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(unfilled_sell_list, 1, 0)
-        for o in self.get_delegated_orders({'orderQty': unit_amount}):
+        for o in self.get_delegated_orders({'orderQty': unit_amount, 'symbol': self.contract_name}):
             redis_item = {'orderID': o['orderID'],
                           'side': o['side'],
                           'price': o['price'],
