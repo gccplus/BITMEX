@@ -32,8 +32,8 @@ class GridStrategy:
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = 'dbS7FklMUz4A0Ftf_0eb-khj'
-        api_secret = 'UGbHj7ucCrz1xz5slMhPPAV72wemdXxxMk4J2OS_73foWObM'
+        api_key = '5Ig-aw-_Fl3vcJ5mt3d0asgg'
+        api_secret = 'BIC4h_iRtqe9HTM2cdiRfYigTXaDaxc4bNwrzZzuFwumgTFv'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
@@ -99,6 +99,21 @@ class GridStrategy:
         else:
             result_order = None
         return result_order
+
+    def close_order(self, symbol, price):
+        try:
+            order = self.cli.Order.Order_new(symbol=symbol, price=price, execInst='Close').result()
+        except Exception as e:
+            if 'insufficient Available Balance' in str(e):
+                self.logger.info('余额不足，委托取消 %s' % e)
+            elif '403 Forbidden' in str(e):
+                self.logger.info('403错误，委托取消 %s' % e)
+            self.logger.error('订单error: %s,1秒后重试' % e)
+            time.sleep(1)
+        else:
+            result = order[0]
+            self.logger.info(
+                '委托成功: side: %s, price: %s, orderid: %s' % (result['side'], result['price'], result['orderID']))
 
     def send_order(self, symbol, side, qty, price):
         times = 0
@@ -187,7 +202,7 @@ class GridStrategy:
             times += 1
         return result
 
-    def cancel_all(self, symbol, filter=None):
+    def cancel_all(self, symbol=None, filter=None):
         times = 0
         result = False
         while times < 200:
@@ -267,7 +282,7 @@ class GridStrategy:
                     self.price_dist = float(self.redis_cli.hget(self.setting_ht, 'price_dist'))
                     self.profit_dist = float(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
 
-                    #fragment_amount = self.redis_cli.llen(self.redis_fragment_list)
+                    # fragment_amount = self.redis_cli.llen(self.redis_fragment_list)
                     redis_item = {
                         'open_price': order_px,
                         'unit_amount': int(cum_qty / self.init_position),
@@ -318,39 +333,17 @@ class GridStrategy:
                         price = order_px - self.profit_dist
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
-
+                        # 上涨止损
+                        if self.redis_cli.llen(self.unfilled_sell_list) == 0:
+                            self.cancel_all()
+                            self.close_order(symbol, price + 100)
                     else:
-                        if 0 < last_buy_qty != cum_qty:
-                            self.redis_cli.rpop(self.redis_fragment_list)
-                            self.cancel_all(symbol, {'orderQty': last_buy_qty})
-                            fm = json.loads(self.redis_cli.lindex(self.redis_fragment_list, -1))
-                            self.logger.info(fm)
-                            self.open_price = fm['open_price']
-                            self.price_dist = fm['price_dist']
-                            self.profit_dist = fm['profit_dist']
-                            self.init_position = fm['init_position']
-                            self.final_position = fm['final_position']
-                            self.unit_amount = fm['unit_amount']
-                            self.unfilled_buy_list = fm['buy_list_name']
-                            self.unfilled_sell_list = fm['sell_list_name']
-
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
                         price = order_px + self.profit_dist
                         self.send_order(symbol, 'Sell', self.unit_amount, price)
                         buy_amount += 1
-                        # if order_px > self.open_price - self.price_dist * self.init_position + self.profit_dist:
-                        #     price = order_px + self.profit_dist
-                        #     self.send_order(symbol, 'Sell', self.unit_amount, price)
-                        #     buy_amount += 1
-                        # else:
-                        #     self.redis_cli.rpop(self.redis_fragment_list)
-                        #     self.cancel_all(symbol, {'orderQty': cum_qty})
 
-                            #
-                            #self.send_order(symbol, 'Buy', self.unit_amount, price)
-
-                        last_buy_qty = cum_qty
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
             time.sleep(0.2)
