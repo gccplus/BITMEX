@@ -18,14 +18,10 @@ class GridStrategy:
     profit_dist = 2
     # 初始仓位
     init_position = 47
-
     # 最终仓位
     final_position = 94
-    # 单位数量,每一个fragment不一样
-    unit_amount = 1
 
-    contract_name = 'XBTZ19'
-    redis_fragment_list = 'redis_fragment_list_1'
+    contract_names = ['XBTUSD', 'XBTZ19']
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
@@ -42,7 +38,7 @@ class GridStrategy:
             url = product_url
         self.cli = bitmex(test=test, api_key=api_key, api_secret=api_secret)
         self.ws = BitMEXWebsocket(endpoint=url,
-                                  symbols=[self.contract_name],
+                                  symbols=self.contract_names,
                                   api_key=api_key,
                                   api_secret=api_secret)
         # init redis client
@@ -50,23 +46,18 @@ class GridStrategy:
 
         # # threading lock
         # self._value_lock = threading.Lock()
-        self.unfilled_sell_list = ''
-        self.unfilled_buy_list = ''
 
         self.logger.info('从redis同步参数')
-        if self.redis_cli.llen(self.redis_fragment_list) > 0:
-            fm = json.loads(self.redis_cli.lindex(self.redis_fragment_list, -1))
-            self.logger.info(fm)
-            self.open_price = fm['open_price']
-            self.price_dist = fm['price_dist']
-            self.profit_dist = fm['profit_dist']
-            self.init_position = fm['init_position']
-            self.final_position = fm['final_position']
-            self.unit_amount = fm['unit_amount']
-            self.unfilled_buy_list = fm['buy_list_name']
-            self.unfilled_sell_list = fm['sell_list_name']
-        else:
-            self.logger.info('当前redis为空')
+
+        self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
+        self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
+        self.price_dist = self.redis_cli.hget(self.setting_ht, 'price_dist')
+        self.profit_dist = self.redis_cli.hget(self.setting_ht, 'profit_dist')
+        self.init_position = self.redis_cli.hget(self.setting_ht, 'init_position')
+        self.final_position = self.redis_cli.hget(self.setting_ht, 'final_position')
+        self.unit_amount = self.redis_cli.hget(self.setting_ht, 'unit_amount')
+        self.unfilled_buy_list = 'buy_list_name'
+        self.unfilled_sell_list = 'sell_list_name'
 
     def get_filled_order(self):
         filled_orders = []
@@ -245,43 +236,11 @@ class GridStrategy:
 
                 # init_position最好是素数
                 if cum_qty % self.init_position == 0:
-                    if order_px < self.open_price:
-                        self.redis_cli.rpop(self.redis_fragment_list)
-                        self.logger.info('清空redis: %s, %s' % (self.unfilled_buy_list, self.unfilled_sell_list))
-                        self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
-                        self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
-                        self.logger.info('取消委托')
-                        self.cancel_all(symbol, {'orderQty': self.unit_amount})
-
                     self.logger.info('开仓...')
-                    self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
-                    self.final_position = int(self.redis_cli.hget(self.setting_ht, 'final_position'))
-                    self.price_dist = float(self.redis_cli.hget(self.setting_ht, 'price_dist'))
-                    self.profit_dist = float(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
-
-                    # fragment_amount = self.redis_cli.llen(self.redis_fragment_list)
-                    redis_item = {
-                        'open_price': order_px,
-                        'unit_amount': int(cum_qty / self.init_position),
-                        'init_position': self.init_position,
-                        'final_position': self.final_position,
-                        'price_dist': self.price_dist,
-                        'profit_dist': self.profit_dist,
-                        'sell_list_name': 'unfilled_sell_list_1',
-                        'buy_list_name': 'unfilled_buy_list_1',
-                    }
-
-                    self.redis_cli.rpush(self.redis_fragment_list, json.dumps(redis_item))
-
-                    self.open_price = redis_item['open_price']
-                    self.unit_amount = redis_item['unit_amount']
-                    self.unfilled_sell_list = redis_item['sell_list_name']
-                    self.unfilled_buy_list = redis_item['buy_list_name']
-                    self.logger.info(redis_item)
-
-                    self.logger.info('清空redis: %s, %s' % (self.unfilled_buy_list, self.unfilled_sell_list))
-                    self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
-                    self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
+                    if side == 'Sell':
+                        self.redis_cli.hset(self.setting_ht, 'open_price_sell', order_px)
+                    else:
+                        self.redis_cli.hset(self.setting_ht, 'open_price_buy', order_px)
 
                     new_orders = []
                     # Sell Order
@@ -313,7 +272,7 @@ class GridStrategy:
                         # 上涨止损
                         if self.redis_cli.llen(self.unfilled_sell_list) == 0:
                             self.cancel_all()
-                            self.close_order(symbol, price + 100)
+                            self.close_order(self.contract_names[0], price + 500)
                     else:
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
@@ -324,11 +283,11 @@ class GridStrategy:
                         # 下跌止损
                         if self.redis_cli.llen(self.unfilled_buy_list) == 0:
                             self.cancel_all()
-                            self.close_order(self.contract_name, price - 100)
+                            self.close_order(self.contract_names[1], price - 500)
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
-            time.sleep(0.1)
+            time.sleep(0.2)
 
 
 def setup_logger():
