@@ -27,13 +27,17 @@ class GridStrategy:
 
     def __init__(self):
         self.logger = setup_logger()
-        test = False
+        test = True
         api_key = 'kVfKITnQdJEzEC2sKYlVr9mM'
         api_secret = 'joccPUd5_DwOd3CDL1lSq_prKDxxM6oRQCmu7aALcw_6KWCi'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
             url = test_url
+            self.filled_order_set = 'filled_order_set2'
+            self.setting_ht = 'grid_setting_hash2'
+            self.api_key = 'iU5CvQzE8-dAkGJ1syfcgnp0'
+            self.api_secret = 'OIzn3ooCBTVP6g-WEMokNCRME82ut1-hNLtd48Enf6wPKrq2'
         else:
             url = product_url
         self.cli = bitmex(test=test, api_key=api_key, api_secret=api_secret)
@@ -59,6 +63,21 @@ class GridStrategy:
         self.unfilled_buy_list = 'buy_list_name'
         self.unfilled_sell_list = 'sell_list_name'
 
+        self.logger.info('同步委托列表')
+        self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
+        self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
+        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
+            redis_item = {'orderID': o['orderID'],
+                          'side': o['side'],
+                          'price': o['price'],
+                          'orderQty': o['orderQty']
+                          }
+            if o['side'] == 'Buy':
+                self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+            else:
+                self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+        self.logger.info('同步完毕')
+
     def get_filled_order(self):
         filled_orders = []
         for order in self.ws.open_orders():
@@ -66,12 +85,26 @@ class GridStrategy:
                 filled_orders.append(order)
         return filled_orders
 
-    def get_unfilled_order(self):
-        pass
+    def get_unfilled_orders(self, filter=None):
+        times = 0
+        result = []
+        while times < 200:
+            self.logger.info('第%s次获取未成交委托' % (times + 1))
+            try:
+                orders = self.cli.Order.Order_getOrders(reverse=True, filter=json.dumps(filter)).result()
+            except Exception as e:
+                self.logger.error('get orders error: %s' % e)
+                time.sleep(1)
+            else:
+                for o in orders[0]:
+                    result.append(o)
+                break
+            times += 1
+        return result
 
-    def close_order(self, symbol, price):
+    def close_order(self, symbol, side, price):
         try:
-            order = self.cli.Order.Order_new(symbol=symbol, price=price, execInst='Close').result()
+            order = self.cli.Order.Order_new(symbol=symbol, side=side, price=price, execInst='Close').result()
         except Exception as e:
             if 'insufficient Available Balance' in str(e):
                 self.logger.info('余额不足，委托取消 %s' % e)
@@ -83,6 +116,31 @@ class GridStrategy:
             result = order[0]
             self.logger.info(
                 '委托成功: side: %s, price: %s, orderid: %s' % (result['side'], result['price'], result['orderID']))
+
+    def send_market_order(self, symbol, side, qty):
+        times = 0
+        result = None
+        while times < 500:
+            self.logger.info('第%s次发起市价委托 side: %s' % (times + 1, side))
+            try:
+                order = self.cli.Order.Order_new(symbol=symbol, side=side, orderQty=qty,
+                                                 ordType='Market').result()
+            except Exception as e:
+                if 'insufficient Available Balance' in str(e):
+                    self.logger.info('余额不足，委托取消 %s' % e)
+                    break
+                elif '403 Forbidden' in str(e):
+                    self.logger.info('403错误，委托取消 %s' % e)
+                    break
+                self.logger.error('订单error: %s,1秒后重试' % e)
+                time.sleep(1)
+            else:
+                result = order[0]
+                self.logger.info(
+                    '委托成功: side: %s, price: %s, orderid: %s' % (result['side'], result['price'], result['orderID']))
+                break
+            times += 1
+        return result
 
     def send_order(self, symbol, side, qty, price):
         times = 0
@@ -271,8 +329,10 @@ class GridStrategy:
                         sell_amount += 1
                         # 上涨止损
                         if self.redis_cli.llen(self.unfilled_sell_list) == 0:
+                            #qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
                             self.cancel_all()
-                            self.close_order(self.contract_names[0], price + 500)
+                            self.close_order(self.contract_names[0], 'Buy', price + 500)
+                            #self.send_market_order(symbol, 'Buy', qty)
                     else:
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
@@ -282,8 +342,10 @@ class GridStrategy:
 
                         # 下跌止损
                         if self.redis_cli.llen(self.unfilled_buy_list) == 0:
+                            #qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
                             self.cancel_all()
-                            self.close_order(self.contract_names[1], price - 500)
+                            self.close_order(self.contract_names[1], 'Sell', price - 500)
+                            #self.send_market_order(symbol, 'Sell', qty)
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
