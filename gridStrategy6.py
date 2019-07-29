@@ -40,11 +40,11 @@ class GridStrategy:
             self.api_secret = '_KkD8sZiG8T1rhNRqN2EvnGu9C4lJXoQHi6v4lj6eVyNxAM4'
         else:
             url = product_url
-        self.cli = bitmex(test=test, api_key=api_key, api_secret=api_secret)
+        self.cli = bitmex(test=test, api_key=self.api_key, api_secret=self.api_secret)
         self.ws = BitMEXWebsocket(endpoint=url,
                                   symbols=self.contract_names,
-                                  api_key=api_key,
-                                  api_secret=api_secret)
+                                  api_key=self.api_key,
+                                  api_secret=self.api_secret)
         # init redis client
         self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
