@@ -324,7 +324,7 @@ class GridStrategy:
                         })
                     self.new_bulk_orders(new_orders)
 
-                else:
+                elif cum_qty == self.unit_amount:
                     if side == 'Sell':
                         self.redis_rem(self.unfilled_sell_list, order_id)
                         price = order_px - self.profit_dist
