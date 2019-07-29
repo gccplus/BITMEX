@@ -298,8 +298,10 @@ class GridStrategy:
                     self.logger.info('开仓...')
                     if side == 'Sell':
                         self.redis_cli.hset(self.setting_ht, 'open_price_sell', order_px)
+                        self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
                     else:
                         self.redis_cli.hset(self.setting_ht, 'open_price_buy', order_px)
+                        self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
 
                     new_orders = []
                     # Sell Order
