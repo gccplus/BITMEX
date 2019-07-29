@@ -53,13 +53,13 @@ class GridStrategy:
 
         self.logger.info('从redis同步参数')
 
-        self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
-        self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
-        self.price_dist = self.redis_cli.hget(self.setting_ht, 'price_dist')
-        self.profit_dist = self.redis_cli.hget(self.setting_ht, 'profit_dist')
-        self.init_position = self.redis_cli.hget(self.setting_ht, 'init_position')
-        self.final_position = self.redis_cli.hget(self.setting_ht, 'final_position')
-        self.unit_amount = self.redis_cli.hget(self.setting_ht, 'unit_amount')
+        #self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
+        #self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
+        self.price_dist = int(self.redis_cli.hget(self.setting_ht, 'price_dist'))
+        self.profit_dist = int(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
+        self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
+        self.final_position = int(self.redis_cli.hget(self.setting_ht, 'final_position'))
+        self.unit_amount = int(self.redis_cli.hget(self.setting_ht, 'unit_amount'))
         self.unfilled_buy_list = 'unfilled_buy_list'
         self.unfilled_sell_list = 'unfilled_sell_list'
 
