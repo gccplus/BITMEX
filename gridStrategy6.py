@@ -60,8 +60,8 @@ class GridStrategy:
         self.init_position = self.redis_cli.hget(self.setting_ht, 'init_position')
         self.final_position = self.redis_cli.hget(self.setting_ht, 'final_position')
         self.unit_amount = self.redis_cli.hget(self.setting_ht, 'unit_amount')
-        self.unfilled_buy_list = 'buy_list_name'
-        self.unfilled_sell_list = 'sell_list_name'
+        self.unfilled_buy_list = 'unfilled_buy_list'
+        self.unfilled_sell_list = 'unfilled_sell_list'
 
         self.logger.info('同步委托列表')
         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
