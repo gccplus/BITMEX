@@ -55,6 +55,7 @@ class GridStrategy:
 
         #self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
         #self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
+
         self.price_dist = int(self.redis_cli.hget(self.setting_ht, 'price_dist'))
         self.profit_dist = int(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
         self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
