@@ -36,8 +36,8 @@ class GridStrategy:
             url = test_url
             self.filled_order_set = 'filled_order_set2'
             self.setting_ht = 'grid_setting_hash2'
-            self.api_key = 'iU5CvQzE8-dAkGJ1syfcgnp0'
-            self.api_secret = 'OIzn3ooCBTVP6g-WEMokNCRME82ut1-hNLtd48Enf6wPKrq2'
+            self.api_key = 'hDZPEs8ECXv9A1OfBysNIySo'
+            self.api_secret = '_KkD8sZiG8T1rhNRqN2EvnGu9C4lJXoQHi6v4lj6eVyNxAM4'
         else:
             url = product_url
         self.cli = bitmex(test=test, api_key=api_key, api_secret=api_secret)
