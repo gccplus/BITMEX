@@ -28,8 +28,8 @@ class GridStrategy:
     def __init__(self):
         self.logger = setup_logger()
         test = False
-        api_key = 'kVfKITnQdJEzEC2sKYlVr9mM'
-        api_secret = 'joccPUd5_DwOd3CDL1lSq_prKDxxM6oRQCmu7aALcw_6KWCi'
+        self.api_key = 'kVfKITnQdJEzEC2sKYlVr9mM'
+        self.api_secret = 'joccPUd5_DwOd3CDL1lSq_prKDxxM6oRQCmu7aALcw_6KWCi'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if test:
