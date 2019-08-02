@@ -313,6 +313,8 @@ class GridStrategy:
                             'ordType': 'Limit',
                             'price': order_px + self.price_dist * i + self.profit_dist
                         })
+                    self.new_bulk_orders(new_orders)
+                    new_orders = []
                     # Buy Order
                     for i in range(self.final_position - self.init_position):
                         new_orders.append({
