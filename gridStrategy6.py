@@ -74,6 +74,7 @@ class GridStrategy:
                           'price': o['price'],
                           'orderQty': o['orderQty']
                           }
+
             print(redis_item)
             if o['side'] == 'Buy':
                 self.redis_insert_buy(self.unfilled_buy_list, redis_item)
