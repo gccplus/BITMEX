@@ -68,7 +68,7 @@ class GridStrategy:
         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
 
-        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New', 'count': 500}):
+        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
             redis_item = {'orderID': o['orderID'],
                           'side': o['side'],
                           'price': o['price'],
@@ -95,7 +95,7 @@ class GridStrategy:
         while times < 200:
             self.logger.info('第%s次获取未成交委托' % (times + 1))
             try:
-                orders = self.cli.Order.Order_getOrders(reverse=True, filter=json.dumps(filter)).result()
+                orders = self.cli.Order.Order_getOrders(reverse=True, count=500, filter=json.dumps(filter)).result()
             except Exception as e:
                 self.logger.error('get orders error: %s' % e)
                 time.sleep(1)
