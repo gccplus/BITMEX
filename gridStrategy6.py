@@ -67,12 +67,14 @@ class GridStrategy:
         self.logger.info('同步委托列表')
         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
+
         for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
             redis_item = {'orderID': o['orderID'],
                           'side': o['side'],
                           'price': o['price'],
                           'orderQty': o['orderQty']
                           }
+            print(redis_item)
             if o['side'] == 'Buy':
                 self.redis_insert_buy(self.unfilled_buy_list, redis_item)
             else:
