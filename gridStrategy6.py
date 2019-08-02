@@ -53,8 +53,8 @@ class GridStrategy:
 
         self.logger.info('从redis同步参数')
 
-        #self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
-        #self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
+        # self.open_price_sell = self.redis_cli.hget(self.setting_ht, 'open_price_sell')
+        # self.open_price_buy = self.redis_cli.hget(self.setting_ht, 'open_price_buy')
 
         self.price_dist = int(self.redis_cli.hget(self.setting_ht, 'price_dist'))
         self.profit_dist = int(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
@@ -68,7 +68,7 @@ class GridStrategy:
         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
 
-        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
+        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New', 'count': 500}):
             redis_item = {'orderID': o['orderID'],
                           'side': o['side'],
                           'price': o['price'],
@@ -336,10 +336,10 @@ class GridStrategy:
                         sell_amount += 1
                         # 上涨止损
                         if self.redis_cli.llen(self.unfilled_sell_list) == 0:
-                            #qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
+                            # qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
                             self.cancel_all()
                             self.close_order(self.contract_names[0], 'Buy', price + 500)
-                            #self.send_market_order(symbol, 'Buy', qty)
+                            # self.send_market_order(symbol, 'Buy', qty)
                     else:
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
@@ -349,10 +349,10 @@ class GridStrategy:
 
                         # 下跌止损
                         if self.redis_cli.llen(self.unfilled_buy_list) == 0:
-                            #qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
+                            # qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
                             self.cancel_all()
                             self.close_order(self.contract_names[1], 'Sell', price - 500)
-                            #self.send_market_order(symbol, 'Sell', qty)
+                            # self.send_market_order(symbol, 'Sell', qty)
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
