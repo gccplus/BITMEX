@@ -24,10 +24,11 @@ class GridStrategy:
     contract_names = ['XBTUSD', 'XBTZ19']
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
+    backup_order_list = 'backup_order_list'
 
     def __init__(self):
         self.logger = setup_logger()
-        test = False
+        test = True
         self.api_key = 'kVfKITnQdJEzEC2sKYlVr9mM'
         self.api_secret = 'joccPUd5_DwOd3CDL1lSq_prKDxxM6oRQCmu7aALcw_6KWCi'
         test_url = 'https://testnet.bitmex.com/api/v1'
@@ -36,8 +37,8 @@ class GridStrategy:
             url = test_url
             self.filled_order_set = 'filled_order_set2'
             self.setting_ht = 'grid_setting_hash2'
-            self.api_key = 'hDZPEs8ECXv9A1OfBysNIySo'
-            self.api_secret = '_KkD8sZiG8T1rhNRqN2EvnGu9C4lJXoQHi6v4lj6eVyNxAM4'
+            self.api_key = 'W6sK1OHR6eiS60ri4ITwH3Aq'
+            self.api_secret = 'ipr3Vkq5800x3yrIImocfzqVJhDHsfgGXSoN0-ZaivbIuIw-'
         else:
             url = product_url
         self.cli = bitmex(test=test, api_key=self.api_key, api_secret=self.api_secret)
@@ -48,34 +49,82 @@ class GridStrategy:
         # init redis client
         self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
-        # # threading lock
+        # threading lock
         # self._value_lock = threading.Lock()
+        t = threading.Thread(target=self.monitor_backup_order)
+        t.daemon = True
+        t.start()
+        self.logger.debug("Started thread")
 
+        # 同步redis数据
         self.logger.info('从redis同步参数')
-
+        #
         self.price_dist = int(self.redis_cli.hget(self.setting_ht, 'price_dist'))
         self.profit_dist = int(self.redis_cli.hget(self.setting_ht, 'profit_dist'))
         self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
         self.final_position = int(self.redis_cli.hget(self.setting_ht, 'final_position'))
         self.unit_amount = int(self.redis_cli.hget(self.setting_ht, 'unit_amount'))
-        self.unfilled_buy_list = 'unfilled_buy_list'
-        self.unfilled_sell_list = 'unfilled_sell_list'
-
-        self.logger.info('同步委托列表')
-        self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
-        self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
-
+        self.unfilled_buy_list = []
+        self.unfilled_sell_list = []
+        self.backup_order_list = []
+        #
+        # self.logger.info('同步委托列表')
+        # self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
+        # self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
         for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
-            redis_item = {'orderID': o['orderID'],
-                          'side': o['side'],
-                          'price': o['price'],
-                          'orderQty': o['orderQty']
-                          }
-            if o['side'] == 'Buy':
-                self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+            # redis_item = {'orderID': o['orderID'],
+            #               'side': o['side'],
+            #               'price': o['price'],
+            #               'orderQty': o['orderQty']
+            #               }
+            # if o['side'] == 'Buy':
+            #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+            # else:
+            #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+            if o['price'] == 3000:
+                self.backup_order_list.append(o['orderID'])
             else:
-                self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+                if o['side'] == 'Buy':
+                    self.unfilled_buy_list.append(o['orderID'])
+                else:
+                    self.unfilled_sell_list.append(o['orderID'])
+
         self.logger.info('同步完毕')
+
+    def monitor_backup_order(self):
+        amount = len(self.backup_order_list)
+        new_orders = []
+        if amount < 25:
+            for i in range(50 - amount):
+                new_orders.append({
+                    'symbol': 'XBTUSD',
+                    'side': 'Buy',
+                    'orderQty': 10,
+                    'ordType': 'Limit',
+                    'price': 3000
+                })
+            times = 0
+            while times < 200:
+                self.logger.info('第%s次newBulk' % (times + 1))
+                try:
+                    order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
+                except Exception as e:
+                    self.logger.error('newBulk error： %s' % e)
+                    time.sleep(1)
+                else:
+                    for o in order[0]:
+                        self.logger.info(
+                            '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
+                        # redis_item = {'orderID': o['orderID'],
+                        #               'side': o['side'],
+                        #               'price': o['price'],
+                        #               'orderQty': o['orderQty']
+                        #               }
+                        #self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
+                        self.backup_order_list.append(o['orderID'])
+                    break
+                times += 1
+        time.sleep(5)
 
     def get_filled_order(self):
         filled_orders = []
@@ -142,43 +191,65 @@ class GridStrategy:
         return result
 
     def send_order(self, symbol, side, qty, price):
-        times = 0
-        result = None
-        while times < 500:
-            self.logger.info('第%s次发起委托 side: %s, price: %s' % (times + 1, side, price))
-            try:
-                order = self.cli.Order.Order_new(symbol=symbol, side=side, orderQty=qty, price=price,
-                                                 ordType='Limit', execInst='ParticipateDoNotInitiate').result()
-            except Exception as e:
-                if 'insufficient Available Balance' in str(e):
-                    self.logger.info('余额不足，委托取消 %s' % e)
-                    break
-                elif '403 Forbidden' in str(e):
-                    self.logger.info('403错误，委托取消 %s' % e)
-                    break
-                self.logger.error('订单error: %s,1秒后重试' % e)
-                time.sleep(1)
-            else:
-                result = order[0]
-                if result['ordStatus'] == 'Canceled':
-                    if side == 'Buy':
-                        return self.send_order(symbol, side, qty, price - self.price_dist)
-                    else:
-                        return self.send_order(symbol, side, qty, price + self.price_dist)
-                self.logger.info(
-                    '委托成功: side: %s, price: %s, orderid: %s' % (result['side'], result['price'], result['orderID']))
-                redis_item = {'orderID': result['orderID'],
-                              'side': result['side'],
-                              'price': result['price'],
-                              'orderQty': result['orderQty']
-                              }
-                if side == 'Buy':
-                    self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+        self.logger.info('发起委托修改 symbol: %s, side: %s, price: %s' % (symbol, side, price))
+        #redis_order = self.redis_cli.lpop(self.backup_order_list)
+        backup_order = self.backup_order_list.pop(0)
+        if backup_order:
+            order = self.cli.Order.Order_amend(orderId=backup_order, symbol=symbol, side=side,
+                                               orderQty=qty, price=price).result()
+            self.logger.info(
+                '委托修改成功: orderID: %s' % (order[0]['orderID']))
+            # redis_item = {'orderID': order[0]['orderID'],
+            #               'side': order[0]['side'],
+            #               'price': order[0]['price'],
+            #               'orderQty': order[0]['orderQty']}
+            # if side == 'Buy':
+            #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+            # else:
+            #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+            return order[0]
+        else:
+            times = 0
+            result = None
+            while times < 500:
+                self.logger.info('第%s次发起委托 side: %s, price: %s' % (times + 1, side, price))
+                try:
+                    order = self.cli.Order.Order_new(symbol=symbol, side=side, orderQty=qty, price=price,
+                                                     ordType='Limit', execInst='ParticipateDoNotInitiate').result()
+                except Exception as e:
+                    if 'insufficient Available Balance' in str(e):
+                        self.logger.info('余额不足，委托取消 %s' % e)
+                        break
+                    elif '403 Forbidden' in str(e):
+                        self.logger.info('403错误，委托取消 %s' % e)
+                        break
+                    self.logger.error('订单error: %s,1秒后重试' % e)
+                    time.sleep(1)
                 else:
-                    self.redis_insert_sell(self.unfilled_sell_list, redis_item)
-                break
-            times += 1
-        return result
+                    result = order[0]
+                    if result['ordStatus'] == 'Canceled':
+                        if side == 'Buy':
+                            return self.send_order(symbol, side, qty, price - self.price_dist)
+                        else:
+                            return self.send_order(symbol, side, qty, price + self.price_dist)
+                    self.logger.info(
+                        '委托成功: side: %s, price: %s, orderid: %s' % (result['side'], result['price'], result['orderID']))
+                    # redis_item = {'orderID': result['orderID'],
+                    #               'side': result['side'],
+                    #               'price': result['price'],
+                    #               'orderQty': result['orderQty']
+                    #               }
+                    # if side == 'Buy':
+                    #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+                    # else:
+                    #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+                    if side == 'Buy':
+                        self.unfilled_buy_list.append(result['orderID'])
+                    else:
+                        self.unfilled_sell_list.append(result['orderID'])
+                    break
+                times += 1
+            return result
 
     def redis_rem(self, name, order_id):
         for i in range(self.redis_cli.llen(name)):
@@ -188,29 +259,29 @@ class GridStrategy:
                 return self.redis_cli.lrem(name, 1, redis_order)
         return 0
 
-    def redis_insert_sell(self, name, item):
-        flag = False
-        for i in range(self.redis_cli.llen(name), 0, -1):
-            redis_order = self.redis_cli.lindex(name, i - 1)
-            json_redis_order = json.loads(redis_order)
-            if json_redis_order['price'] <= item['price']:
-                self.redis_cli.linsert(name, 'after', redis_order, json.dumps(item))
-                flag = True
-                break
-        if not flag:
-            self.redis_cli.lpush(name, json.dumps(item))
-
-    def redis_insert_buy(self, name, item):
-        flag = False
-        for i in range(self.redis_cli.llen(name)):
-            redis_order = self.redis_cli.lindex(name, i)
-            json_redis_order = json.loads(redis_order)
-            if json_redis_order['price'] >= item['price']:
-                self.redis_cli.linsert(name, 'before', redis_order, json.dumps(item))
-                flag = True
-                break
-        if not flag:
-            self.redis_cli.rpush(name, json.dumps(item))
+    # def redis_insert_sell(self, name, item):
+    #     flag = False
+    #     for i in range(self.redis_cli.llen(name), 0, -1):
+    #         redis_order = self.redis_cli.lindex(name, i - 1)
+    #         json_redis_order = json.loads(redis_order)
+    #         if json_redis_order['price'] <= item['price']:
+    #             self.redis_cli.linsert(name, 'after', redis_order, json.dumps(item))
+    #             flag = True
+    #             break
+    #     if not flag:
+    #         self.redis_cli.lpush(name, json.dumps(item))
+    #
+    # def redis_insert_buy(self, name, item):
+    #     flag = False
+    #     for i in range(self.redis_cli.llen(name)):
+    #         redis_order = self.redis_cli.lindex(name, i)
+    #         json_redis_order = json.loads(redis_order)
+    #         if json_redis_order['price'] >= item['price']:
+    #             self.redis_cli.linsert(name, 'before', redis_order, json.dumps(item))
+    #             flag = True
+    #             break
+    #     if not flag:
+    #         self.redis_cli.rpush(name, json.dumps(item))
 
     def cancel_order(self, orderid):
         times = 0
@@ -261,15 +332,19 @@ class GridStrategy:
                 for o in order[0]:
                     self.logger.info(
                         '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
-                    redis_item = {'orderID': o['orderID'],
-                                  'side': o['side'],
-                                  'price': o['price'],
-                                  'orderQty': o['orderQty']
-                                  }
+                    # redis_item = {'orderID': o['orderID'],
+                    #               'side': o['side'],
+                    #               'price': o['price'],
+                    #               'orderQty': o['orderQty']
+                    #               }
+                    # if o['side'] == 'Buy':
+                    #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+                    # else:
+                    #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
                     if o['side'] == 'Buy':
-                        self.redis_insert_buy(self.unfilled_buy_list, redis_item)
+                        self.unfilled_buy_list.append(result['orderID'])
                     else:
-                        self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+                        self.unfilled_sell_list.append(result['orderID'])
                 break
             times += 1
         return result
@@ -296,10 +371,10 @@ class GridStrategy:
                     self.logger.info('开仓...')
                     if side == 'Sell':
                         self.redis_cli.hset(self.setting_ht, 'open_price_sell', order_px)
-                        self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
+                        #self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
                     else:
                         self.redis_cli.hset(self.setting_ht, 'open_price_buy', order_px)
-                        self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
+                        #self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
 
                     new_orders = []
                     # Sell Order
@@ -326,7 +401,9 @@ class GridStrategy:
 
                 elif cum_qty == self.unit_amount:
                     if side == 'Sell':
-                        self.redis_rem(self.unfilled_sell_list, order_id)
+                        #self.redis_rem(self.unfilled_sell_list, order_id)
+                        self.unfilled_sell_list.remove(order_id)
+                        print(self.unfilled_sell_list)
                         price = order_px - self.profit_dist
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
@@ -337,7 +414,9 @@ class GridStrategy:
                             self.close_order(self.contract_names[0], 'Buy', price + 500)
                             # self.send_market_order(symbol, 'Buy', qty)
                     else:
-                        self.redis_rem(self.unfilled_buy_list, order_id)
+                        #self.redis_rem(self.unfilled_buy_list, order_id)
+                        self.unfilled_buy_list.remove(order_id)
+                        print(self.unfilled_buy_list)
 
                         price = order_px + self.profit_dist
                         self.send_order(symbol, 'Sell', self.unit_amount, price)
@@ -368,3 +447,4 @@ def setup_logger():
 if __name__ == "__main__":
     robot = GridStrategy()
     robot.run()
+    #print(dir(robot.cli.Order))
