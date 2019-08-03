@@ -92,40 +92,41 @@ class GridStrategy:
         self.logger.info('同步完毕')
 
     def monitor_backup_order(self):
-        amount = len(self.backup_order_list)
-        print(self.backup_order_list)
-        new_orders = []
-        if amount < 25:
-            for i in range(50 - amount):
-                new_orders.append({
-                    'symbol': 'XBTUSD',
-                    'side': 'Buy',
-                    'orderQty': 10,
-                    'ordType': 'Limit',
-                    'price': 3000
-                })
-            times = 0
-            while times < 200:
-                self.logger.info('第%s次newBulk' % (times + 1))
-                try:
-                    order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
-                except Exception as e:
-                    self.logger.error('newBulk error： %s' % e)
-                    time.sleep(1)
-                else:
-                    for o in order[0]:
-                        self.logger.info(
-                            '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
-                        # redis_item = {'orderID': o['orderID'],
-                        #               'side': o['side'],
-                        #               'price': o['price'],
-                        #               'orderQty': o['orderQty']
-                        #               }
-                        #self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
-                        self.backup_order_list.append(o['orderID'])
-                    break
-                times += 1
-        time.sleep(5)
+        while True:
+            amount = len(self.backup_order_list)
+            print(self.backup_order_list)
+            new_orders = []
+            if amount < 25:
+                for i in range(50 - amount):
+                    new_orders.append({
+                        'symbol': 'XBTUSD',
+                        'side': 'Buy',
+                        'orderQty': 10,
+                        'ordType': 'Limit',
+                        'price': 3000
+                    })
+                times = 0
+                while times < 200:
+                    self.logger.info('第%s次newBulk' % (times + 1))
+                    try:
+                        order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
+                    except Exception as e:
+                        self.logger.error('newBulk error： %s' % e)
+                        time.sleep(1)
+                    else:
+                        for o in order[0]:
+                            self.logger.info(
+                                '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
+                            # redis_item = {'orderID': o['orderID'],
+                            #               'side': o['side'],
+                            #               'price': o['price'],
+                            #               'orderQty': o['orderQty']
+                            #               }
+                            #self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
+                            self.backup_order_list.append(o['orderID'])
+                        break
+                    times += 1
+            time.sleep(5)
 
     def get_filled_order(self):
         filled_orders = []
