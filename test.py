@@ -51,10 +51,6 @@ class GridStrategy:
 
         # threading lock
         # self._value_lock = threading.Lock()
-        t = threading.Thread(target=self.monitor_backup_order)
-        t.daemon = True
-        t.start()
-        self.logger.debug("Started thread")
 
         # 同步redis数据
         self.logger.info('从redis同步参数')
@@ -71,7 +67,7 @@ class GridStrategy:
         # self.logger.info('同步委托列表')
         # self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         # self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
-        for o in self.get_unfilled_orders({'ordStatus': 'New'}):
+        for o in self.get_unfilled_orders({'orderQty': self.unit_amount, 'ordStatus': 'New'}):
             # redis_item = {'orderID': o['orderID'],
             #               'side': o['side'],
             #               'price': o['price'],
@@ -88,8 +84,13 @@ class GridStrategy:
                     self.unfilled_buy_list.append(o['orderID'])
                 else:
                     self.unfilled_sell_list.append(o['orderID'])
-        print(self.backup_order_list)
+
         self.logger.info('同步完毕')
+
+        t = threading.Thread(target=self.monitor_backup_order)
+        t.daemon = True
+        t.start()
+        self.logger.debug("Started thread")
 
     def monitor_backup_order(self):
         while True:
@@ -122,7 +123,7 @@ class GridStrategy:
                             #               'price': o['price'],
                             #               'orderQty': o['orderQty']
                             #               }
-                            #self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
+                            # self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
                             self.backup_order_list.append(o['orderID'])
                         break
                     times += 1
@@ -194,7 +195,7 @@ class GridStrategy:
 
     def send_order(self, symbol, side, qty, price):
         self.logger.info('发起委托修改 symbol: %s, side: %s, price: %s' % (symbol, side, price))
-        #redis_order = self.redis_cli.lpop(self.backup_order_list)
+        # redis_order = self.redis_cli.lpop(self.backup_order_list)
         backup_order = self.backup_order_list.pop(0)
         if backup_order:
             order = self.cli.Order.Order_amend(orderId=backup_order, symbol=symbol, side=side,
@@ -373,10 +374,10 @@ class GridStrategy:
                     self.logger.info('开仓...')
                     if side == 'Sell':
                         self.redis_cli.hset(self.setting_ht, 'open_price_sell', order_px)
-                        #self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
+                        # self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
                     else:
                         self.redis_cli.hset(self.setting_ht, 'open_price_buy', order_px)
-                        #self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
+                        # self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
 
                     new_orders = []
                     # Sell Order
@@ -403,7 +404,7 @@ class GridStrategy:
 
                 elif cum_qty == self.unit_amount:
                     if side == 'Sell':
-                        #self.redis_rem(self.unfilled_sell_list, order_id)
+                        # self.redis_rem(self.unfilled_sell_list, order_id)
                         self.unfilled_sell_list.remove(order_id)
                         print(self.unfilled_sell_list)
                         price = order_px - self.profit_dist
@@ -416,7 +417,7 @@ class GridStrategy:
                             self.close_order(self.contract_names[0], 'Buy', price + 500)
                             # self.send_market_order(symbol, 'Buy', qty)
                     else:
-                        #self.redis_rem(self.unfilled_buy_list, order_id)
+                        # self.redis_rem(self.unfilled_buy_list, order_id)
                         self.unfilled_buy_list.remove(order_id)
                         print(self.unfilled_buy_list)
 
@@ -449,4 +450,4 @@ def setup_logger():
 if __name__ == "__main__":
     robot = GridStrategy()
     robot.run()
-    #print(dir(robot.cli.Order))
+    # print(dir(robot.cli.Order))
