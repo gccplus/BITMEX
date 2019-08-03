@@ -93,6 +93,7 @@ class GridStrategy:
 
     def monitor_backup_order(self):
         amount = len(self.backup_order_list)
+        print(self.backup_order_list)
         new_orders = []
         if amount < 25:
             for i in range(50 - amount):
