@@ -88,13 +88,13 @@ class GridStrategy:
                     self.unfilled_buy_list.append(o['orderID'])
                 else:
                     self.unfilled_sell_list.append(o['orderID'])
-
+        print(self.backup_order_list)
         self.logger.info('同步完毕')
 
     def monitor_backup_order(self):
         while True:
             amount = len(self.backup_order_list)
-            print(self.backup_order_list)
+            print(amount)
             new_orders = []
             if amount < 25:
                 for i in range(50 - amount):
