@@ -97,7 +97,7 @@ class GridStrategy:
             amount = len(self.backup_order_list)
             print(amount)
             new_orders = []
-            if amount < 25:
+            if amount < 49:
                 for i in range(50 - amount):
                     new_orders.append({
                         'symbol': 'XBTUSD',
