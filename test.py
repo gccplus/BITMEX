@@ -432,7 +432,7 @@ class GridStrategy:
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
                         # 上涨止损
-                        if self.redis_cli.llen(self.unfilled_sell_list) == 0:
+                        if len(self.unfilled_sell_list) == 0:
                             # qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
                             self.cancel_all()
                             self.close_order(self.contract_names[0], 'Buy', price + 500)
@@ -447,7 +447,7 @@ class GridStrategy:
                         buy_amount += 1
 
                         # 下跌止损
-                        if self.redis_cli.llen(self.unfilled_buy_list) == 0:
+                        if len(self.unfilled_buy_list) == 0:
                             # qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
                             self.cancel_all()
                             self.close_order(self.contract_names[1], 'Sell', price - 500)
