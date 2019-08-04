@@ -62,23 +62,32 @@ class GridStrategy:
         self.unit_amount = int(self.redis_cli.hget(self.setting_ht, 'unit_amount'))
         self.unfilled_buy_list = []
         self.unfilled_sell_list = []
-        self.backup_order_list = []
+        self.backup_buy_order_0 = []
+        self.backup_buy_order_1 = []
+        self.backup_sell_order_0 = []
+        self.backup_sell_order_1 = []
         #
         # self.logger.info('同步委托列表')
         # self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         # self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
         for o in self.get_unfilled_orders({'ordStatus': 'New'}):
-            # redis_item = {'orderID': o['orderID'],
-            #               'side': o['side'],
-            #               'price': o['price'],
-            #               'orderQty': o['orderQty']
-            #               }
+            item = {'orderID': o['orderID'],
+                    'side': o['side'],
+                    'symbol': o['symbol']
+                    }
             # if o['side'] == 'Buy':
             #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
             # else:
             #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
-            if o['price'] == 3000:
-                self.backup_order_list.append(o['orderID'])
+            if o['orderQty'] != self.unit_amount:
+                if o['side'] == 'Buy' and o['symbol'] == self.contract_names[0]:
+                    self.backup_buy_order_0.append(item)
+                elif o['side'] == 'Buy' and o['symbol'] == self.contract_names[1]:
+                    self.backup_buy_order_1.append(item)
+                elif o['side'] == 'Sell' and o['symbol'] == self.contract_names[0]:
+                    self.backup_sell_order_0.append(item)
+                else:
+                    self.backup_sell_order_1.append(item)
             else:
                 if o['side'] == 'Buy':
                     self.unfilled_buy_list.append(o['orderID'])
@@ -94,39 +103,57 @@ class GridStrategy:
 
     def monitor_backup_order(self):
         while True:
-            amount = len(self.backup_order_list)
-            print(amount)
             new_orders = []
-            if amount < 49:
-                for i in range(50 - amount):
-                    new_orders.append({
-                        'symbol': 'XBTUSD',
-                        'side': 'Buy',
-                        'orderQty': 10,
-                        'ordType': 'Limit',
-                        'price': 3000
-                    })
-                times = 0
-                while times < 200:
-                    self.logger.info('第%s次newBulk' % (times + 1))
-                    try:
-                        order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
-                    except Exception as e:
-                        self.logger.error('newBulk error： %s' % e)
-                        time.sleep(1)
-                    else:
-                        for o in order[0]:
-                            self.logger.info(
-                                '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
-                            # redis_item = {'orderID': o['orderID'],
-                            #               'side': o['side'],
-                            #               'price': o['price'],
-                            #               'orderQty': o['orderQty']
-                            #               }
-                            # self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
-                            self.backup_order_list.append(o['orderID'])
-                        break
-                    times += 1
+            info = [[self.contract_names[0], 'Buy', 10, 3000],
+                    [self.contract_names[1], 'Buy', 10, 3000],
+                    [self.contract_names[0], 'Sell', 40, 14000],
+                    [self.contract_names[1], 'Sell', 40, 14000],
+                    ]
+            for idx, order_list in enumerate(
+                    [self.backup_buy_order_0, self.backup_buy_order_1, self.backup_sell_order_0,
+                     self.backup_sell_order_1]):
+                amount = len(order_list)
+                if amount < 20:
+                    for i in range(20 - amount):
+                        new_orders.append({
+                            'symbol': info[idx][0],
+                            'side': info[idx][1],
+                            'orderQty': info[idx][2],
+                            'price': info[idx][3],
+                            'ordType': 'Limit'
+                        })
+            times = 0
+            while times < 200:
+                self.logger.info('第%s次newBulk' % (times + 1))
+                try:
+                    order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
+                except Exception as e:
+                    self.logger.error('newBulk error： %s' % e)
+                    time.sleep(1)
+                else:
+                    for o in order[0]:
+                        self.logger.info(
+                            '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
+                        # redis_item = {'orderID': o['orderID'],
+                        #               'side': o['side'],
+                        #               'price': o['price'],
+                        #               'orderQty': o['orderQty']
+                        #               }
+                        # self.redis_cli.rpush(self.backup_order_list, json.dumps(redis_item))
+                        item = {'orderID': o['orderID'],
+                                'side': o['side'],
+                                'symbol': o['symbol']
+                                }
+                        if o['side'] == 'Buy' and o['symbol'] == self.contract_names[0]:
+                            self.backup_buy_order_0.append(item)
+                        elif o['side'] == 'Buy' and o['symbol'] == self.contract_names[1]:
+                            self.backup_buy_order_1.append(item)
+                        elif o['side'] == 'Sell' and o['symbol'] == self.contract_names[0]:
+                            self.backup_sell_order_0.append(item)
+                        else:
+                            self.backup_sell_order_1.append(item)
+                    break
+                times += 1
             time.sleep(5)
 
     def get_filled_order(self):
@@ -196,9 +223,17 @@ class GridStrategy:
     def send_order(self, symbol, side, qty, price):
         self.logger.info('发起委托修改 symbol: %s, side: %s, price: %s' % (symbol, side, price))
         # redis_order = self.redis_cli.lpop(self.backup_order_list)
-        backup_order = self.backup_order_list.pop(0)
+        if side == 'Buy' and symbol == self.contract_names[0]:
+            backup_order = self.backup_buy_order_0.pop(0)
+        elif side == 'Buy' and symbol == self.contract_names[1]:
+            backup_order = self.backup_buy_order_1.pop(0)
+        elif side == 'Sell' and symbol == self.contract_names[0]:
+            backup_order = self.backup_sell_order_0.pop(0)
+        else:
+            backup_order = self.backup_sell_order_1.pop(0)
+        print(backup_order)
         if backup_order:
-            order = self.cli.Order.Order_amend(orderId=backup_order, symbol=symbol, side=side,
+            order = self.cli.Order.Order_amend(orderId=backup_order['orderID'], symbol=symbol, side=side,
                                                orderQty=qty, price=price).result()
             self.logger.info(
                 '委托修改成功: orderID: %s' % (order[0]['orderID']))
