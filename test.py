@@ -220,7 +220,7 @@ class GridStrategy:
             backup_order = self.backup_sell_order_1.pop(0)
         print(backup_order)
         if backup_order:
-            order = self.cli.Order.Order_amend(orderId=backup_order['orderID'], orderQty=qty, price=price).result()
+            order = self.cli.Order.Order_amend(orderID=backup_order['orderID'], orderQty=qty, price=price).result()
             self.logger.info(
                 '委托修改成功: orderID: %s' % (order[0]['orderID']))
             # redis_item = {'orderID': order[0]['orderID'],
