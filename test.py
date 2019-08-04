@@ -122,6 +122,7 @@ class GridStrategy:
                             'price': info[idx][3],
                             'ordType': 'Limit'
                         })
+            print(new_orders)
             times = 0
             while times < 200:
                 self.logger.info('第%s次newBulk' % (times + 1))
