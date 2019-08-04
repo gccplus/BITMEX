@@ -227,10 +227,10 @@ class GridStrategy:
             #               'side': order[0]['side'],
             #               'price': order[0]['price'],
             #               'orderQty': order[0]['orderQty']}
-            # if side == 'Buy':
-            #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
-            # else:
-            #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
+            if side == 'Buy':
+                self.unfilled_buy_list.append(order[0]['orderID'])
+            else:
+                self.unfilled_sell_list.append(order[0]['orderID'])
             return order[0]
         else:
             times = 0
