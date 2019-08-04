@@ -122,25 +122,25 @@ class GridStrategy:
                             'price': info[idx][3],
                             'ordType': 'Limit'
                         })
-                times = 0
-                while times < 200:
-                    self.logger.info('第%s次newBulk' % (times + 1))
-                    try:
-                        order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
-                    except Exception as e:
-                        self.logger.error('newBulk error： %s' % e)
-                        time.sleep(1)
-                    else:
-                        for o in order[0]:
-                            self.logger.info(
-                                '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
-                            item = {'orderID': o['orderID'],
-                                    'side': o['side'],
-                                    'symbol': o['symbol']
-                                    }
-                            order_list.append(item)
-                        break
-                    times += 1
+                    times = 0
+                    while times < 200:
+                        self.logger.info('第%s次newBulk' % (times + 1))
+                        try:
+                            order = self.cli.Order.Order_newBulk(orders=json.dumps(new_orders)).result()
+                        except Exception as e:
+                            self.logger.error('newBulk error： %s' % e)
+                            time.sleep(1)
+                        else:
+                            for o in order[0]:
+                                self.logger.info(
+                                    '委托成功: side: %s, price: %s, orderid: %s' % (o['side'], o['price'], o['orderID']))
+                                item = {'orderID': o['orderID'],
+                                        'side': o['side'],
+                                        'symbol': o['symbol']
+                                        }
+                                order_list.append(item)
+                            break
+                        times += 1
             time.sleep(5)
 
     def get_filled_order(self):
