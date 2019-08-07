@@ -67,18 +67,11 @@ class GridStrategy:
         self.backup_sell_order_0 = []
         self.backup_sell_order_1 = []
         #
-        # self.logger.info('同步委托列表')
-        # self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
-        # self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
         for o in self.get_unfilled_orders({'ordStatus': 'New'}):
             item = {'orderID': o['orderID'],
                     'side': o['side'],
                     'symbol': o['symbol']
                     }
-            # if o['side'] == 'Buy':
-            #     self.redis_insert_buy(self.unfilled_buy_list, redis_item)
-            # else:
-            #     self.redis_insert_sell(self.unfilled_sell_list, redis_item)
             if o['orderQty'] != self.unit_amount:
                 if o['side'] == 'Buy' and o['symbol'] == self.contract_names[0]:
                     self.backup_buy_order_0.append(item)
@@ -113,7 +106,7 @@ class GridStrategy:
                      self.backup_sell_order_1]):
                 amount = len(order_list)
                 new_orders = []
-                if amount < 20:
+                if amount < 10:
                     for i in range(20 - amount):
                         new_orders.append({
                             'symbol': info[idx][0],
