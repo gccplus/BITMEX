@@ -86,7 +86,10 @@ class GridStrategy:
                     self.unfilled_buy_list.append(o['orderID'])
                 else:
                     self.unfilled_sell_list.append(o['orderID'])
-
+        print(len(self.unfilled_buy_list))
+        print(self.unfilled_buy_list)
+        print(len(self.unfilled_sell_list))
+        print(self.unfilled_sell_list)
         self.logger.info('同步完毕')
 
         t = threading.Thread(target=self.monitor_backup_order)
@@ -419,7 +422,7 @@ class GridStrategy:
                     if side == 'Sell':
                         # self.redis_rem(self.unfilled_sell_list, order_id)
                         self.unfilled_sell_list.remove(order_id)
-                        print(self.unfilled_sell_list)
+                        #print(self.unfilled_sell_list)
                         price = order_px - self.profit_dist
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
@@ -432,7 +435,7 @@ class GridStrategy:
                     else:
                         # self.redis_rem(self.unfilled_buy_list, order_id)
                         self.unfilled_buy_list.remove(order_id)
-                        print(self.unfilled_buy_list)
+                        #print(self.unfilled_buy_list)
 
                         price = order_px + self.profit_dist
                         self.send_order(symbol, 'Sell', self.unit_amount, price)
