@@ -211,7 +211,6 @@ class GridStrategy:
             backup_order = self.backup_sell_order_0.pop(0)
         else:
             backup_order = self.backup_sell_order_1.pop(0)
-        print(backup_order)
         if backup_order:
             order = self.cli.Order.Order_amend(orderID=backup_order['orderID'], orderQty=qty, price=price).result()
             self.logger.info(
@@ -447,6 +446,10 @@ class GridStrategy:
                             # self.send_market_order(symbol, 'Sell', qty)
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
+                self.logger.info(
+                    'total: %d\tunfilled_sell: %d\tunfilled_buy: %d' % (
+                    len(self.unfilled_sell_list) + len(self.unfilled_buy_list), len(self.unfilled_sell_list),
+                    len(self.unfilled_buy_list)))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
             time.sleep(0.2)
 
