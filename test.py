@@ -470,5 +470,5 @@ def setup_logger():
 if __name__ == "__main__":
     robot = GridStrategy()
     robot.run()
-    print('hello')
+    #print('hello')
     # print(dir(robot.cli.Order))
