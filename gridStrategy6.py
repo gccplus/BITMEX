@@ -27,30 +27,8 @@ class GridStrategy:
 
     def __init__(self):
         self.logger = setup_logger()
-        test = False
-        self.api_key = '-ycA8-LJUWi58YNRiqTnBTjn'
-        self.api_secret = '4BYMXW9vTv97Fx6W2j9zSw3atTE-GVxiEsobFaZZlqJtHLH8'
-        test_url = 'https://testnet.bitmex.com/api/v1'
-        product_url = 'https://www.bitmex.com/api/v1'
-        if test:
-            url = test_url
-            self.filled_order_set = 'filled_order_set2'
-            self.setting_ht = 'grid_setting_hash2'
-            self.api_key = 'hDZPEs8ECXv9A1OfBysNIySo'
-            self.api_secret = '_KkD8sZiG8T1rhNRqN2EvnGu9C4lJXoQHi6v4lj6eVyNxAM4'
-        else:
-            url = product_url
-        self.cli = bitmex(test=test, api_key=self.api_key, api_secret=self.api_secret)
-        self.ws = BitMEXWebsocket(endpoint=url,
-                                  symbols=self.contract_names,
-                                  api_key=self.api_key,
-                                  api_secret=self.api_secret)
         # init redis client
         self.redis_cli = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-        # # threading lock
-        # self._value_lock = threading.Lock()
-
         self.logger.info('从redis同步参数')
 
         self.price_dist = int(self.redis_cli.hget(self.setting_ht, 'price_dist'))
@@ -58,10 +36,35 @@ class GridStrategy:
         self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
         self.final_position = int(self.redis_cli.hget(self.setting_ht, 'final_position'))
         self.unit_amount = int(self.redis_cli.hget(self.setting_ht, 'unit_amount'))
-        self.unfilled_buy_list = 'unfilled_buy_list'
-        self.unfilled_sell_list = 'unfilled_sell_list'
+        self.if_test = bool(self.redis_cli.hget(self.setting_ht, 'if_test'))
+        self.api_key = self.redis_cli.hget(self.setting_ht, 'api_key')
+        self.api_secret = self.redis_cli.hget(self.setting_ht, 'api_secret')
+        #test = False
+        #self.api_key = '-ycA8-LJUWi58YNRiqTnBTjn'
+        #self.api_secret = '4BYMXW9vTv97Fx6W2j9zSw3atTE-GVxiEsobFaZZlqJtHLH8'
+        test_url = 'https://testnet.bitmex.com/api/v1'
+        product_url = 'https://www.bitmex.com/api/v1'
+        if self.if_test:
+            url = test_url
+            self.filled_order_set = 'filled_order_set2'
+            self.setting_ht = 'grid_setting_hash2'
+            self.api_key = 'YaZ6c81UNsKVCW2eh87a7OeL'
+            self.api_secret = '4lursf1Lk5DBrl7M28hJTBsxMiVeBIhnNyciL_glYQDPCJdy'
+        else:
+            url = product_url
+
+        self.cli = bitmex(test=self.if_test, api_key=self.api_key, api_secret=self.api_secret)
+        self.ws = BitMEXWebsocket(endpoint=url,
+                                  symbols=self.contract_names,
+                                  api_key=self.api_key,
+                                  api_secret=self.api_secret)
+
+        # # threading lock
+        # self._value_lock = threading.Lock()
 
         self.logger.info('同步委托列表')
+        self.unfilled_buy_list = 'unfilled_buy_list'
+        self.unfilled_sell_list = 'unfilled_sell_list'
         self.redis_cli.ltrim(self.unfilled_buy_list, 1, 0)
         self.redis_cli.ltrim(self.unfilled_sell_list, 1, 0)
 
