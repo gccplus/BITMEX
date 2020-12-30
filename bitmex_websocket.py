@@ -154,11 +154,11 @@ class BitMEXWebsocket:
     def websocket_run_forever(self, args):
         self.ws.run_forever()
 
-    def __on_ping(self, frame, data):
+    def __on_ping(self, data):
         self.logger.debug('## ping')
         self.logger.debug(data)
 
-    def __on_pong(self, frame, data):
+    def __on_pong(self, data):
         self.logger.debug('## pong')
         self.logger.debug(data)
 
@@ -215,7 +215,7 @@ class BitMEXWebsocket:
             args = []
         self.ws.send(json.dumps({"op": command, "args": args}))
 
-    def __on_message(self, ws, message):
+    def __on_message(self, message):
         '''Handler for parsing WS messages.'''
         message = json.loads(message)
         self.logger.debug(json.dumps(message))
@@ -272,17 +272,17 @@ class BitMEXWebsocket:
         except:
             self.logger.error(traceback.format_exc())
 
-    def __on_error(self, ws, error):
+    def __on_error(self, error):
         '''Called on fatal websocket errors. We exit on these.'''
         if not self.exited:
             self.logger.error("Error : %s" % error)
             raise websocket.WebSocketException(error)
 
-    def __on_open(self, ws):
+    def __on_open(self):
         '''Called when the WS opens.'''
         self.logger.debug("Websocket Opened.")
 
-    def __on_close(self, ws):
+    def __on_close(self):
         '''Called on websocket close.'''
         self.logger.info('Websocket Closed')
         self.__reconnect()
