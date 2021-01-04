@@ -306,7 +306,7 @@ class GridStrategy:
 
                     new_orders = []
                     # Sell Order
-                    for i in range(self.final_position - self.init_position):
+                    for i in range(self.init_position):
                         new_orders.append({
                             'symbol': symbol,
                             'side': 'Sell',
@@ -317,7 +317,7 @@ class GridStrategy:
                     self.new_bulk_orders(new_orders)
                     new_orders = []
                     # Buy Order
-                    for i in range(self.init_position):
+                    for i in range(self.final_position - self.init_position):
                         new_orders.append({
                             'symbol': symbol,
                             'side': 'Buy',
