@@ -334,11 +334,11 @@ class GridStrategy:
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
                         # 上涨止损
-                        if self.redis_cli.llen(self.unfilled_sell_list) == 0:
-                            # qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
-                            self.cancel_all()
-                            self.close_order(self.contract_names[0], 'Buy', price + 500)
-                            # self.send_market_order(symbol, 'Buy', qty)
+#                         if self.redis_cli.llen(self.unfilled_sell_list) == 0:
+#                             # qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
+#                             self.cancel_all()
+#                             self.close_order(self.contract_names[0], 'Buy', price + 500)
+#                             # self.send_market_order(symbol, 'Buy', qty)
                     else:
                         self.redis_rem(self.unfilled_buy_list, order_id)
 
@@ -347,11 +347,11 @@ class GridStrategy:
                         buy_amount += 1
 
                         # 下跌止损
-                        if self.redis_cli.llen(self.unfilled_buy_list) == 0:
-                            # qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
-                            self.cancel_all()
-                            self.close_order(self.contract_names[1], 'Sell', price - 500)
-                            # self.send_market_order(symbol, 'Sell', qty)
+#                         if self.redis_cli.llen(self.unfilled_buy_list) == 0:
+#                             # qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
+#                             self.cancel_all()
+#                             self.close_order(self.contract_names[1], 'Sell', price - 500)
+#                             # self.send_market_order(symbol, 'Sell', qty)
 
                 self.logger.info('TOTAL: %d\tBUY: %d\tSELL: %d' % (sell_amount + buy_amount, buy_amount, sell_amount))
                 self.redis_cli.sadd(self.filled_order_set, filled_order['orderID'])
