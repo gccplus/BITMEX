@@ -36,7 +36,7 @@ class GridStrategy:
         self.init_position = int(self.redis_cli.hget(self.setting_ht, 'init_position'))
         self.final_position = int(self.redis_cli.hget(self.setting_ht, 'final_position'))
         self.unit_amount = int(self.redis_cli.hget(self.setting_ht, 'unit_amount'))
-        self.if_test = bool(self.redis_cli.hget(self.setting_ht, 'if_test'))
+        self.if_test = int(self.redis_cli.hget(self.setting_ht, 'if_test'))
         self.api_key = self.redis_cli.hget(self.setting_ht, 'api_key')
         self.api_secret = self.redis_cli.hget(self.setting_ht, 'api_secret')
         #test = False
