@@ -45,6 +45,7 @@ class GridStrategy:
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
         if self.if_test:
+            print('TEST.')
             url = test_url
             self.filled_order_set = 'filled_order_set2'
             self.setting_ht = 'grid_setting_hash2'
