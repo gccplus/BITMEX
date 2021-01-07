@@ -4,7 +4,7 @@ from BitMEXAPIKeyAuthenticator import APIKeyAuthenticator
 
 
 def bitmex(test=True, config=None, api_key=None, api_secret=None):
-
+    print('test status: %s' % test)
     if config is None:
         # See full config options at http://bravado.readthedocs.io/en/latest/configuration.html
         config = {
