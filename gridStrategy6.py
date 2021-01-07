@@ -44,6 +44,7 @@ class GridStrategy:
         #self.api_secret = '4BYMXW9vTv97Fx6W2j9zSw3atTE-GVxiEsobFaZZlqJtHLH8'
         test_url = 'https://testnet.bitmex.com/api/v1'
         product_url = 'https://www.bitmex.com/api/v1'
+        print(self.if_test)
         if self.if_test:
             print('TEST.')
             url = test_url
