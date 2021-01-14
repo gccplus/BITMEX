@@ -1,6 +1,7 @@
 from bitmex_rest import bitmex
 import logging
 import logging.handlers
+import json
 
 def setup_logger():
     logger = logging.getLogger()
@@ -22,4 +23,8 @@ if __name__ == "__main__":
     product_url = 'https://www.bitmex.com/api/v1'
     cli = bitmex(test=test, api_key=api_key, api_secret=api_secret)
     print(dir(cli.Execution))
-    #cli.Execution.Order_getOrders(reverse=True, filter=json.dumps(filter)).result()
+    filter = {
+        "execType": "Funding"
+    }
+    res = cli.Execution.Execution_getTradeHistory(reverse=True, symbol=contract_name, syfilter=json.dumps(filter)).result()
+    print(res)
