@@ -26,5 +26,5 @@ if __name__ == "__main__":
     filter = {
         "execType": "Funding"
     }
-    res = cli.Execution.Execution_getTradeHistory(reverse=True, symbol=contract_name, syfilter=json.dumps(filter)).result()
+    res = cli.Execution.Execution_getTradeHistory(reverse=True, symbol=contract_name, filter=json.dumps(filter)).result()
     print(res)
