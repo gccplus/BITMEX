@@ -23,6 +23,6 @@ six==1.15.0
 strict-rfc3339==0.7
 swagger-spec-validator==2.7.3
 typing-extensions==3.7.4.3
-urllib3==1.26.2
+urllib3==1.26.4
 webcolors==1.11.1
 websocket-client==0.53.0
