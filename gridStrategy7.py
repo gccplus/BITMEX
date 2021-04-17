@@ -21,7 +21,7 @@ class GridStrategy:
     # 最终仓位
     final_position = 94
 
-    contract_names = ['XBTUSD']
+    contract_names = ['XBTU21']
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
