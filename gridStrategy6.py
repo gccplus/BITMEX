@@ -21,7 +21,7 @@ class GridStrategy:
     # 最终仓位
     final_position = 94
 
-    contract_names = ['XBTUSD']
+    contract_names = ['XBTU21']
     filled_order_set = 'filled_order_set'
     setting_ht = 'grid_setting_hash'
 
@@ -283,6 +283,7 @@ class GridStrategy:
         self.logger.info('start')
         buy_amount = 0
         sell_amount = 0
+        last_buy = []
         while True:
             filled_orders = self.get_filled_order()
             for filled_order in filled_orders:
@@ -335,6 +336,11 @@ class GridStrategy:
                         price = order_px - self.profit_dist
                         self.send_order(symbol, 'Buy', self.unit_amount, price)
                         sell_amount += 1
+                        if last_buy:
+                            self.logger.info('orderID\tSell:%s-Buy:%s', order_id, last_buy[-1])
+                            last_buy.pop()
+                        else:
+                            self.logger.info('orderID\tSell:%s-Buy:%s', order_id, '')
                         # 上涨止损
 #                         if self.redis_cli.llen(self.unfilled_sell_list) == 0:
 #                             # qty = self.redis_cli.llen(self.unfilled_buy_list) * self.unit_amount / 2
@@ -347,7 +353,7 @@ class GridStrategy:
                         price = order_px + self.profit_dist
                         self.send_order(symbol, 'Sell', self.unit_amount, price)
                         buy_amount += 1
-
+                        last_buy.append(order_id)
                         # 下跌止损
 #                         if self.redis_cli.llen(self.unfilled_buy_list) == 0:
 #                             # qty = self.redis_cli.llen(self.unfilled_sell_list) * self.unit_amount / 2
